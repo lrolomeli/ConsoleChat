@@ -59,7 +59,7 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
 uart_handle_t g_uartHandle;
 
 uint8_t g_tipString[] =
-    "Uart interrupt example\r\nBoard receives 1 characters then sends them out\r\nNow please input:\r\n";
+    "\r\nYou have entered a valid value\r\n";
 
 uint8_t g_txBuffer = 0;
 uint8_t g_rxBuffer = 0;
@@ -80,7 +80,9 @@ int main(void)
     uart_transfer_t xfer;
     uart_transfer_t sendXfer;
     uart_transfer_t receiveXfer;
-    static char phrase[50] = {0};
+    static uint8_t phrase[50] = {0};
+    static uint8_t i;
+
 
     BOARD_InitPins();
     BOARD_BootClockRUN();
@@ -95,6 +97,8 @@ int main(void)
     /* Send g_tipString out. */
     xfer.data = g_tipString;
     xfer.dataSize = sizeof(g_tipString) - 1;
+
+#if example_printf
     txOnGoing = true;   //EL DATO ESTA LISTO PARA SER ENVIADO
     UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &xfer);
 
@@ -102,6 +106,7 @@ int main(void)
     while (txOnGoing)
     {
     }
+#endif
 
     /* Start to echo. */
     sendXfer.data = &g_txBuffer;
@@ -125,10 +130,22 @@ int main(void)
         /* Si no se encuentra transmitiendo y el buffer de transmision esta lleno. */
         if ((!txOnGoing) && txBufferFull)
         {
-            if('h' != (g_txBuffer))
-            {
-                break;
-            }
+        	*(phrase) = *(sendXfer.data);
+			switch (phrase[i]) {
+			case '\r':
+				UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &xfer);
+
+				/* Wait send finished */
+				while (txOnGoing) {
+				}
+				break;
+			case '\0':
+				break;
+			default:
+				break;
+			}
+			i++;
+
             /**entonces ya se encuentra transmitiendo*/
             txOnGoing = true;
             /**comienza a transmitir lo que hay en el buffer*/
