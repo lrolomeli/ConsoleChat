@@ -9,8 +9,21 @@
 #define LCDNOKIA5110_H_
 
 #include "DataTypeDefinitions.h"
+#include "fsl_gpio.h"
+#include "fsl_dspi.h"
+#include "fsl_port.h"
+
 #define SCREENW 84
 #define SCREENH 48
+
+#define LCD_DSPI_MASTER_BASEADDR SPI0
+#define LCD_DSPI_SLAVE_BASEADDR SPI1
+#define LCD_DSPI_MASTER_IRQ SPI0_IRQn
+#define LCD_DSPI_MASTER_IRQHandler SPI0_IRQHandler
+#define LCD_DSPI_SLAVE_IRQ SPI1_IRQn
+#define LCD_DSPI_SLAVE_IRQHandler SPI1_IRQHandler
+#define TRANSFER_BAUDRATE 500000U /*! Transfer baudrate - 500k */
+#define TRANSFER_SIZE 1U         /*! Transfer dataSize */
 
 #define LCD_X 84
 #define LCD_Y 48
@@ -20,6 +33,13 @@
 #define LCD_DIN_PIN 2
 #define LCD_CLK_PIN 1
 #define LCD_RESET_PIN 0
+
+/*******************************************************************************
+ * Prototypes
+ ******************************************************************************/
+/* DSPI user callback */
+void DSPI_MasterUserCallback(SPI_Type *base, dspi_master_handle_t *handle, status_t status, void *userData);
+
 /*It configures the LCD*/
 void LCDNokia_init(void);
 /*It writes a byte in the LCD memory. The place of writting is the last place that was indicated by LCDNokia_gotoXY. In the reset state

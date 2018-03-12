@@ -2,28 +2,10 @@
  * LCDNokia5110.c
  *
  *  Created on: Jun 13, 2014
- *      Author: Luis
+ *      Author: Luis Roberto Lomeli Plascencia
  */
 
-#include "fsl_gpio.h"
-#include "fsl_dspi.h"
-#include "fsl_port.h"
 #include "LCDNokia5110.h"
-
-#define LCD_DSPI_MASTER_BASEADDR SPI0
-#define LCD_DSPI_SLAVE_BASEADDR SPI1
-#define LCD_DSPI_MASTER_IRQ SPI0_IRQn
-#define LCD_DSPI_MASTER_IRQHandler SPI0_IRQHandler
-#define LCD_DSPI_SLAVE_IRQ SPI1_IRQn
-#define LCD_DSPI_SLAVE_IRQHandler SPI1_IRQHandler
-#define TRANSFER_BAUDRATE 500000U /*! Transfer baudrate - 500k */
-#define TRANSFER_SIZE 1U         /*! Transfer dataSize */
-
-/*******************************************************************************
- * Prototypes
- ******************************************************************************/
-/* DSPI user callback */
-void DSPI_MasterUserCallback(SPI_Type *base, dspi_master_handle_t *handle, status_t status, void *userData);
 
 /*******************************************************************************
  * Variables
@@ -194,9 +176,6 @@ void LCDNokia_init(void) {
 	LCDNokia_writeByte(LCD_CMD, 0x20); //We must send 0x20 before modifying the display control mode
 	LCDNokia_writeByte(LCD_CMD, 0x0C); //Set display control, normal mode. 0x0D for inverse}
 
-
-
-
 }
 
 void LCDNokia_bitmap(const uint8* my_array){
@@ -210,8 +189,7 @@ void LCDNokia_bitmap(const uint8* my_array){
 void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
 {
 	dspi_transfer_t masterXfer;
-	static uint8_t buffer[1];
-	buffer[0] = data;
+
 	if(DataOrCmd)
 		GPIO_SetPinsOutput(GPIOD, 1 << LCD_DC_PIN);
 	else
@@ -221,7 +199,7 @@ void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
 
 	/* Start master transfer, send data to slave */
 	isTransferCompleted = false;
-	masterXfer.txData = buffer;
+	masterXfer.txData = &data;
 	masterXfer.rxData = NULL;
 	masterXfer.dataSize = TRANSFER_SIZE;
 	masterXfer.configFlags = kDSPI_MasterCtar0
