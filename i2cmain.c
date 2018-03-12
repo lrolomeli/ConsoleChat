@@ -76,7 +76,7 @@ int main(void)
     port_pin_config_t config_i2c =
     { kPORT_PullDisable, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
             kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAlt2,
-            kPORT_UnlockRegister, };
+            kPORT_UnlockRegister };
 
     PORT_SetPinConfig(PORTB, 2, &config_i2c);
     PORT_SetPinConfig(PORTB, 3, &config_i2c);
@@ -91,14 +91,14 @@ int main(void)
 
     i2c_master_transfer_t masterXfer;
 
-    uint8_t data_buffer[3] = {0x00, 0x00, 'a'};
+    uint8_t data_buffer = 'a';
 
     masterXfer.slaveAddress = 0x50;
     masterXfer.direction = kI2C_Write;
-    masterXfer.subaddress = 0;
-    masterXfer.subaddressSize = 0;
-    masterXfer.data = data_buffer;
-    masterXfer.dataSize = 3;
+    masterXfer.subaddress = 0x00FF;
+    masterXfer.subaddressSize = 2;
+    masterXfer.data = &data_buffer;
+    masterXfer.dataSize = 1;
     masterXfer.flags = kI2C_TransferDefaultFlag;
 
     I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,

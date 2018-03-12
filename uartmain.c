@@ -188,12 +188,17 @@ int main(void)
     BOARD_InitPins();
     BOARD_BootClockRUN();
 
+    //reloj uart clockenable
+    //pins tx and rx config as uart
+
     UART_GetDefaultConfig(&config);
     config.enableTx = true;
     config.enableRx = true;
 
     UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
     UART_TransferCreateHandle(DEMO_UART, &g_uartHandle, UART_UserCallback, NULL);
+
+    //NVICinterruptuartirqpriority > 5
 
     tx_semaphore = xSemaphoreCreateMutex();
 
@@ -218,14 +223,17 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
 {
     userData = userData;
 
+    //basetype  higher priority
     if (kStatus_UART_TxIdle == status)
     {
+    	//event group set bits from isr for tx
         txBufferFull = false;
         txOnGoing = false;
     }
 
     if (kStatus_UART_RxIdle == status)
     {
+    	//event group set bits from isr for rx
         rxBufferEmpty = false;
         rxOnGoing = false;
     }
