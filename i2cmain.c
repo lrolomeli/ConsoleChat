@@ -89,9 +89,11 @@ int main(void)
     I2C_MasterTransferCreateHandle(I2C0, &g_m_handle,
             i2c_master_callback, NULL);
 
-    i2c_master_transfer_t masterXfer;
 
-    uint8_t data_buffer = 1;
+/**
+ * para la memoria eprom
+
+   uint8_t data_buffer = 'a';
 
     masterXfer.slaveAddress = 0x50;
     masterXfer.direction = kI2C_Write;
@@ -106,36 +108,59 @@ int main(void)
     while (!g_MasterCompletionFlag){}
     g_MasterCompletionFlag = false;
 
-    uint8_t read_buffer[2] = {0x00, 0xFF};
+    uint8_t read_buffer;
 
-    masterXfer.slaveAddress = 0xA0;
-    masterXfer.direction = kI2C_Write;
-    masterXfer.subaddress = 0;
-    masterXfer.subaddressSize = 0;
-    masterXfer.data = read_buffer;
-    masterXfer.dataSize = 1;
-    masterXfer.flags = kI2C_TransferNoStopFlag;
-
-    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
-            &masterXfer);
-    while (!g_MasterCompletionFlag){}
-    g_MasterCompletionFlag = false;
-
-
-    uint8_t data;
-
-    masterXfer.slaveAddress = 0xA0;
+    masterXfer.slaveAddress = 0x50;
     masterXfer.direction = kI2C_Read;
-    masterXfer.subaddress = 0;
-    masterXfer.subaddressSize = 0;
-    masterXfer.data = &data;
+    masterXfer.subaddress = 0x00FF;
+    masterXfer.subaddressSize = 2;
+    masterXfer.data = &read_buffer;
     masterXfer.dataSize = 1;
-    masterXfer.flags = kI2C_TransferRepeatedStartFlag;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
 
     I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
             &masterXfer);
     while (!g_MasterCompletionFlag){}
     g_MasterCompletionFlag = false;
+
+*/
+
+    i2c_master_transfer_t masterXfer;
+    uint8_t data_buffer = 0x00;
+
+       masterXfer.slaveAddress = 0x51;
+       masterXfer.direction = kI2C_Write;
+       masterXfer.subaddress = 0x00;
+       masterXfer.subaddressSize = 1;
+       masterXfer.data = &data_buffer;
+       masterXfer.dataSize = 1;
+       masterXfer.flags = kI2C_TransferDefaultFlag;
+
+       I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
+               &masterXfer);
+       while (!g_MasterCompletionFlag){}
+       g_MasterCompletionFlag = false;
+
+       uint8_t read_buffer;
+       masterXfer.slaveAddress = 0x51;
+       masterXfer.direction = kI2C_Read;
+       masterXfer.subaddress = 0x02;
+       masterXfer.subaddressSize = 1;
+       masterXfer.data = &read_buffer;
+       masterXfer.dataSize = 1;
+       masterXfer.flags = kI2C_TransferDefaultFlag;
+while (1)
+{
+    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
+            &masterXfer);
+    while (!g_MasterCompletionFlag){}
+    g_MasterCompletionFlag = false;
+    PRINTF("%x\r", read_buffer);
+}
+
+
+
+
 
     /* Force the counter to be placed into memory. */
     volatile static int i = 0;
