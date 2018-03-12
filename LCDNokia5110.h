@@ -53,9 +53,9 @@ void LCDNokia_gotoXY(uint8 x, uint8 y);
 /*It allows to write a figure represented by constant array*/
 void LCDNokia_bitmap(const uint8*);
 /*It write a character in the LCD*/
-void LCDNokia_sendChar(uint8);
+void LCDNokia_sendChar(uint8, uint8_t bw);
 /*It write a string into the LCD*/
-void LCDNokia_sendString(uint8*);
+void LCDNokia_sendString(uint8*, uint8_t bw);
 /*It used in the initialisation routine*/
 void LCD_delay(void);
 

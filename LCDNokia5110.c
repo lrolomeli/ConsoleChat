@@ -215,21 +215,32 @@ void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
 	DSPI_StopTransfer(LCD_DSPI_MASTER_BASEADDR);
 }
 
-void LCDNokia_sendChar(uint8 character) {
+void LCDNokia_sendChar(uint8 character, uint8_t bw) {
   uint16 index = 0; 
 	
-  LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
+  //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
 
-  for (index = 0 ; index < 5 ; index++)
-	  LCDNokia_writeByte(LCD_DATA, ASCII[character - 0x20][index]);
-    //0x20 is the ASCII character for Space (' '). The font table starts with this character
+  if(bw)
+  {
+	  for (index = 0 ; index < 5 ; index++)
+		  LCDNokia_writeByte(LCD_DATA, ~(ASCII[character - 0x20][index]) & 0xFF);
+	    //0x20 is the ASCII character for Space (' '). The font table starts with this character
+  }
+  else
+  {
+	  for (index = 0 ; index < 5 ; index++)
+		  LCDNokia_writeByte(LCD_DATA, ASCII[character - 0x20][index]);
+	    //0x20 is the ASCII character for Space (' '). The font table starts with this character
+  }
 
-  LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
+
+
+  //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
 }
 
-void LCDNokia_sendString(uint8 *characters) {
+void LCDNokia_sendString(uint8 *characters, uint8_t bw) {
   while (*characters)
-	  LCDNokia_sendChar(*characters++);
+	  LCDNokia_sendChar(*characters++, bw);
 }
 
 void LCDNokia_clear(void) {
