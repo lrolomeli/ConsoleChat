@@ -34,21 +34,27 @@
 
 #include "board.h"
 #include "fsl_uart.h"
-
+#include "fsl_port.h"
+#include "fsl_gpio.h"
 #include "pin_mux.h"
 #include "clock_config.h"
 #include "freeRTOS.h"
 #include "task.h"
 #include "semphr.h"
+#include "event_groups.h"
+
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
 /* UART instance and clock */
-#define DEMO_UART UART3
+#define DEMO_UART UART0
 #define DEMO_UART_CLKSRC UART0_CLK_SRC
 #define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART0_CLK_SRC)
 #define ECHO_BUFFER_LENGTH 1
 
+
+#define EVENT_RX (1 << 0)
+#define EVENT_TX (1 << 1)
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -61,6 +67,7 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
  ******************************************************************************/
 uart_handle_t g_uartHandle;
 SemaphoreHandle_t tx_semaphore;
+EventGroupHandle_t uart_events_g;
 
 uint8_t g_tipString[] =
     "\r\nYou have entered a valid value\r\n";
@@ -112,9 +119,9 @@ void uart_transceiver_task(void * pvParameters)
 {
 	uart_transfer_t sendXfer;
 	uart_transfer_t receiveXfer;
-	static uint8_t phrase_size = 0;
-	static uint8_t phrase[50] =
-	{ 0 };
+//	static uint8_t phrase_size = 0;
+//	static uint8_t phrase[50] =
+//	{ 0 };
 
     /* Start to echo. */
     sendXfer.data = &g_txBuffer;
@@ -122,61 +129,70 @@ void uart_transceiver_task(void * pvParameters)
     receiveXfer.data = &g_rxBuffer;
     receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
 
-	for(;;)
-	{
-		/* If RX is idle and g_rxBuffer is empty, start to read data to g_rxBuffer. */
-		    /* Si no se encuentra recibiendo y el buffer de recepcion esta vacio. */
-		    if ((!rxOnGoing) && rxBufferEmpty)
-		    {
-		        /**entonces puedes decir que ahora ya se encuentra recibiendo*/
-		        rxOnGoing = true;
-		        /**puedes empezar a recibir*/
-		        UART_TransferReceiveNonBlocking(DEMO_UART, &g_uartHandle, &receiveXfer, NULL);
-		    }
+    for(;;)
+    {
+    	UART_TransferReceiveNonBlocking(DEMO_UART, &g_uartHandle, &receiveXfer, NULL);
+    	xEventGroupWaitBits(uart_events_g, EVENT_RX, pdTRUE, pdTRUE, portMAX_DELAY);
+    	g_txBuffer = g_rxBuffer;
+    	UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &sendXfer);
+    	xEventGroupWaitBits(uart_events_g, EVENT_TX, pdTRUE, pdTRUE, portMAX_DELAY);
+    }
 
-		    /* If TX is idle and g_txBuffer is full, start to send data. */
-		    /* Si no se encuentra transmitiendo y el buffer de transmision esta lleno. */
-		    if ((!txOnGoing) && txBufferFull)
-		    {
-
-		    	if('\r' != *(sendXfer.data) && '\b' != *(sendXfer.data) && phrase_size < 50)
-		    	{
-		    		*(phrase + phrase_size) = *(sendXfer.data);
-		    		phrase_size++;
-		    	}
-		    	else if('\b' == *(sendXfer.data) && phrase_size < 50)
-		    	{
-		    		phrase_size = (phrase_size > 0) ? phrase_size - 1 : 0;
-		    	}
-		    	else if('\r' == *(sendXfer.data) && phrase_size < 50)
-		    	{
-		    		phrase_size = 0;
-		    		//guardar frase y utilizarla
-		    	}
-		    	else
-		    	{
-		    		phrase_size = 0;
-		    	}
-
-		        /**entonces ya se encuentra transmitiendo*/
-		        txOnGoing = true;
-		        /**comienza a transmitir lo que hay en el buffer*/
-		        UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &sendXfer);
-
-		    }
-
-		    /* If g_txBuffer is empty and g_rxBuffer is full, copy g_rxBuffer to g_txBuffer. */
-		    /* Si el buffer de recepcion no esta vacio y el buffer de transmision tampoco. */
-		    if ((!rxBufferEmpty) && (!txBufferFull))
-		    {
-		        /**entonces copia lo que hay en el buffer de recepcion al de transmision*/
-		        memcpy(&g_txBuffer, &g_rxBuffer, ECHO_BUFFER_LENGTH);
-		        /**el buffer de recepcion esta vacio*/
-		        rxBufferEmpty = true;
-		        /**el buffer de transmision esta lleno*/
-		        txBufferFull = true;
-		    }
-	}
+//	for(;;)
+//	{
+//		/* If RX is idle and g_rxBuffer is empty, start to read data to g_rxBuffer. */
+//		    /* Si no se encuentra recibiendo y el buffer de recepcion esta vacio. */
+//		    if ((!rxOnGoing) && rxBufferEmpty)
+//		    {
+//		        /**entonces puedes decir que ahora ya se encuentra recibiendo*/
+//		        rxOnGoing = true;
+//		        /**puedes empezar a recibir*/
+//		        UART_TransferReceiveNonBlocking(DEMO_UART, &g_uartHandle, &receiveXfer, NULL);
+//		    }
+//
+//		    /* If TX is idle and g_txBuffer is full, start to send data. */
+//		    /* Si no se encuentra transmitiendo y el buffer de transmision esta lleno. */
+//		    if ((!txOnGoing) && txBufferFull)
+//		    {
+//
+//		    	if('\r' != *(sendXfer.data) && '\b' != *(sendXfer.data) && phrase_size < 50)
+//		    	{
+//		    		*(phrase + phrase_size) = *(sendXfer.data);
+//		    		phrase_size++;
+//		    	}
+//		    	else if('\b' == *(sendXfer.data) && phrase_size < 50)
+//		    	{
+//		    		phrase_size = (phrase_size > 0) ? phrase_size - 1 : 0;
+//		    	}
+//		    	else if('\r' == *(sendXfer.data) && phrase_size < 50)
+//		    	{
+//		    		phrase_size = 0;
+//		    		//guardar frase y utilizarla
+//		    	}
+//		    	else
+//		    	{
+//		    		phrase_size = 0;
+//		    	}
+//
+//		        /**entonces ya se encuentra transmitiendo*/
+//		        txOnGoing = true;
+//		        /**comienza a transmitir lo que hay en el buffer*/
+//		        UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &sendXfer);
+//
+//		    }
+//
+//		    /* If g_txBuffer is empty and g_rxBuffer is full, copy g_rxBuffer to g_txBuffer. */
+//		    /* Si el buffer de recepcion no esta vacio y el buffer de transmision tampoco. */
+//		    if ((!rxBufferEmpty) && (!txBufferFull))
+//		    {
+//		        /**entonces copia lo que hay en el buffer de recepcion al de transmision*/
+//		        memcpy(&g_txBuffer, &g_rxBuffer, ECHO_BUFFER_LENGTH);
+//		        /**el buffer de recepcion esta vacio*/
+//		        rxBufferEmpty = true;
+//		        /**el buffer de transmision esta lleno*/
+//		        txBufferFull = true;
+//		    }
+//	}
 
 
 }
@@ -192,7 +208,11 @@ int main(void)
     //pins tx and rx config as uart
 
     CLOCK_EnableClock(kCLOCK_PortB);
+    CLOCK_EnableClock(kCLOCK_Uart0);
 
+
+	PORT_SetPinMux(PORTB, 10, kPORT_MuxAlt3);
+    PORT_SetPinMux(PORTB, 11, kPORT_MuxAlt3);
 
     UART_GetDefaultConfig(&config);
     config.enableTx = true;
@@ -200,20 +220,17 @@ int main(void)
 
     UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
     UART_TransferCreateHandle(DEMO_UART, &g_uartHandle, UART_UserCallback, NULL);
-
-    NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
-    //NVICinterruptuartirqpriority > 5
-
-    tx_semaphore = xSemaphoreCreateMutex();
-
 	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE, NULL,
 	        configMAX_PRIORITIES, NULL);
 
-#if debug_print_task_mutex_sem
-	xTaskCreate(uart_transmitter_task, "print_task", configMINIMAL_STACK_SIZE, NULL,
-	        configMAX_PRIORITIES - 1, NULL);
-#endif
+//#if debug_print_task_mutex_sem
+//	xTaskCreate(uart_transmitter_task, "print_task", configMINIMAL_STACK_SIZE, NULL,
+//	        configMAX_PRIORITIES - 1, NULL);
+//#endif
 
+	uart_events_g = xEventGroupCreate();
+    NVIC_EnableIRQ(UART0_RX_TX_IRQn);
+    NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
 	vTaskStartScheduler();
 
     for(;;)
@@ -227,18 +244,18 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
 {
     userData = userData;
 
-    //basetype  higher priority
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
     if (kStatus_UART_TxIdle == status)
     {
     	//event group set bits from isr for tx
-        txBufferFull = false;
-        txOnGoing = false;
+    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_TX, &xHigherPriorityTaskWoken);
     }
 
     if (kStatus_UART_RxIdle == status)
     {
     	//event group set bits from isr for rx
-        rxBufferEmpty = false;
-        rxOnGoing = false;
+    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_RX, &xHigherPriorityTaskWoken);
     }
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
