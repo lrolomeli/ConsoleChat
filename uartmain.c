@@ -44,7 +44,7 @@
  * Definitions
  ******************************************************************************/
 /* UART instance and clock */
-#define DEMO_UART UART0
+#define DEMO_UART UART3
 #define DEMO_UART_CLKSRC UART0_CLK_SRC
 #define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART0_CLK_SRC)
 #define ECHO_BUFFER_LENGTH 1
@@ -191,6 +191,9 @@ int main(void)
     //reloj uart clockenable
     //pins tx and rx config as uart
 
+    CLOCK_EnableClock(kCLOCK_PortB);
+
+
     UART_GetDefaultConfig(&config);
     config.enableTx = true;
     config.enableRx = true;
@@ -198,6 +201,7 @@ int main(void)
     UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
     UART_TransferCreateHandle(DEMO_UART, &g_uartHandle, UART_UserCallback, NULL);
 
+    NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
     //NVICinterruptuartirqpriority > 5
 
     tx_semaphore = xSemaphoreCreateMutex();

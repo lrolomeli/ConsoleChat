@@ -74,7 +74,7 @@ int main(void)
     CLOCK_EnableClock(kCLOCK_I2c0);
 
     port_pin_config_t config_i2c =
-    { kPORT_PullDisable, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
+    { kPORT_PullUp, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
             kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAlt2,
             kPORT_UnlockRegister };
 
@@ -91,7 +91,7 @@ int main(void)
 
     i2c_master_transfer_t masterXfer;
 
-    uint8_t data_buffer = 'a';
+    uint8_t data_buffer = 1;
 
     masterXfer.slaveAddress = 0x50;
     masterXfer.direction = kI2C_Write;
