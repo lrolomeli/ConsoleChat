@@ -91,9 +91,9 @@ int main(void)
 
     i2c_master_transfer_t masterXfer;
 
-    uint8_t data_buffer[3] = {0x00, 0xFF, 'T'};
+    uint8_t data_buffer[3] = {0x00, 0x00, 'a'};
 
-    masterXfer.slaveAddress = 0xA0;
+    masterXfer.slaveAddress = 0x50;
     masterXfer.direction = kI2C_Write;
     masterXfer.subaddress = 0;
     masterXfer.subaddressSize = 0;
