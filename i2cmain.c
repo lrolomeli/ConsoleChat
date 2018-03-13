@@ -39,29 +39,127 @@
 #include "clock_config.h"
 #include "MK64F12.h"
 #include "fsl_debug_console.h"
-#include "fsl_port.h"
 #include "fsl_i2c.h"
-/* TODO: insert other include files here. */
+#include "fsl_gpio.h"
+#include "fsl_port.h"
+#include "freeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
+
+
+
+static i2c_master_handle_t g_m_handle;
+SemaphoreHandle_t transfer_i2c_semaphore;
+i2c_master_transfer_t masterXfer;
 
 /* TODO: insert other definitions and declarations here. */
 
 volatile bool g_MasterCompletionFlag = false;
+void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData);
 
-static void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle,
-        status_t status, void * userData)
+
+void write_mem(void * pvParameters)
 {
+	//////////////////////////////////////////ESCRIBIR MEMORIA//////////////////////////////////////////////////////////////////////
+	uint8_t data_buffer = 'a';
 
-    if (status == kStatus_Success)
-    {
-        g_MasterCompletionFlag = true;
-    }
+    masterXfer.slaveAddress = 0x50;
+    masterXfer.direction = kI2C_Write;
+    masterXfer.subaddress = 0x00FF;
+    masterXfer.subaddressSize = 2;
+    masterXfer.data = &data_buffer;
+    masterXfer.dataSize = 1;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	for(;;)
+	{
+
+		I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle, &masterXfer);
+		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+		vTaskDelete(NULL);
+	}
+
 }
+
+
+void read_mem(void * pvParameters)
+{
+	//////////////////////////////////////////LEER MEMORIA//////////////////////////////////////////////////////////////////////
+	uint8_t read_buffer;
+
+	masterXfer.slaveAddress = 0x50;
+    masterXfer.direction = kI2C_Read;
+    masterXfer.subaddress = 0x00FF;
+    masterXfer.subaddressSize = 2;
+    masterXfer.data = &read_buffer;
+    masterXfer.dataSize = 1;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	for(;;)
+	{
+	    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	    PRINTF("%x", read_buffer);
+
+	}
+}
+
+/**
+//////////////////////////////////////////ESCRIBIR CLK//////////////////////////////////////////////////////////////////////
+void write_clk(void * pvParameters)
+{
+    uint8_t data_buffer = 0x00;
+
+    masterXfer.slaveAddress = 0x51;
+    masterXfer.direction = kI2C_Write;
+    masterXfer.subaddress = 0x00;
+    masterXfer.subaddressSize = 1;
+    masterXfer.data = &data_buffer;
+    masterXfer.dataSize = 1;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	for(;;)
+	{
+		       I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle, &masterXfer);
+		       xEventGroupWaitBits(write_read_i2c, EVENT_WRITE_CLK_I2C, pdTRUE, pdTRUE, portMAX_DELAY);
+		       g_MasterCompletionFlag = false;
+	}
+}
+
+//////////////////////////////////////////LEER SEG CLK//////////////////////////////////////////////////////////////////////
+void read_clk(void * pvParameters)
+{
+	uint8_t read_buffer;
+
+    masterXfer.slaveAddress = 0x51;
+    masterXfer.direction = kI2C_Read;
+    masterXfer.subaddress = 0x02;
+    masterXfer.subaddressSize = 1;
+    masterXfer.data = &read_buffer;
+    masterXfer.dataSize = 1;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	for(;;)
+	{
+
+	   I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	   xEventGroupWaitBits(write_read_i2c, EVENT_WRITE_CLK_I2C, pdTRUE, pdTRUE, portMAX_DELAY);
+	    g_MasterCompletionFlag = false;
+	    PRINTF("%x\r", read_buffer);
+	}
+}
+*/
+
+
 
 /*
  * @brief   Application entry point.
  */
 int main(void)
 {
+
+    i2c_master_config_t masterConfig;
 
     /* Init board hardware. */
     BOARD_InitBootPins();
@@ -78,97 +176,42 @@ int main(void)
             kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAlt2,
             kPORT_UnlockRegister };
 
+
     PORT_SetPinConfig(PORTB, 2, &config_i2c);
     PORT_SetPinConfig(PORTB, 3, &config_i2c);
 
-    i2c_master_config_t masterConfig;
     I2C_MasterGetDefaultConfig(&masterConfig);
     I2C_MasterInit(I2C0, &masterConfig, CLOCK_GetFreq(kCLOCK_BusClk));
+    I2C_MasterTransferCreateHandle(I2C0, &g_m_handle, i2c_master_callback, NULL);
 
-    i2c_master_handle_t g_m_handle;
-    I2C_MasterTransferCreateHandle(I2C0, &g_m_handle,
-            i2c_master_callback, NULL);
+	xTaskCreate(write_mem, "write_mem", 150, (void *) 0, 4, NULL);
+	xTaskCreate(read_mem,  "read_mem" , 150, (void *) 0, 3, NULL);
+	//xTaskCreate(write_clk, "write_clk", 110, (void *) 0, 2, NULL);
+	//xTaskCreate(write_mem, "read_clk" , 110, (void *) 0, 1, NULL);
 
-
-/**
- * para la memoria eprom
-
-   uint8_t data_buffer = 'a';
-
-    masterXfer.slaveAddress = 0x50;
-    masterXfer.direction = kI2C_Write;
-    masterXfer.subaddress = 0x00FF;
-    masterXfer.subaddressSize = 2;
-    masterXfer.data = &data_buffer;
-    masterXfer.dataSize = 1;
-    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-    I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
-            &masterXfer);
-    while (!g_MasterCompletionFlag){}
-    g_MasterCompletionFlag = false;
-
-    uint8_t read_buffer;
-
-    masterXfer.slaveAddress = 0x50;
-    masterXfer.direction = kI2C_Read;
-    masterXfer.subaddress = 0x00FF;
-    masterXfer.subaddressSize = 2;
-    masterXfer.data = &read_buffer;
-    masterXfer.dataSize = 1;
-    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
-            &masterXfer);
-    while (!g_MasterCompletionFlag){}
-    g_MasterCompletionFlag = false;
-
-*/
-
-    i2c_master_transfer_t masterXfer;
-    uint8_t data_buffer = 0x00;
-
-       masterXfer.slaveAddress = 0x51;
-       masterXfer.direction = kI2C_Write;
-       masterXfer.subaddress = 0x00;
-       masterXfer.subaddressSize = 1;
-       masterXfer.data = &data_buffer;
-       masterXfer.dataSize = 1;
-       masterXfer.flags = kI2C_TransferDefaultFlag;
-
-       I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
-               &masterXfer);
-       while (!g_MasterCompletionFlag){}
-       g_MasterCompletionFlag = false;
-
-       uint8_t read_buffer;
-       masterXfer.slaveAddress = 0x51;
-       masterXfer.direction = kI2C_Read;
-       masterXfer.subaddress = 0x02;
-       masterXfer.subaddressSize = 1;
-       masterXfer.data = &read_buffer;
-       masterXfer.dataSize = 1;
-       masterXfer.flags = kI2C_TransferDefaultFlag;
-while (1)
-{
-    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
-            &masterXfer);
-    while (!g_MasterCompletionFlag){}
-    g_MasterCompletionFlag = false;
-    PRINTF("%x\r", read_buffer);
-}
+	transfer_i2c_semaphore = xSemaphoreCreateBinary();
+    NVIC_EnableIRQ(I2C0_IRQn);
+    NVIC_SetPriority(I2C0_IRQn, 5);
+	vTaskStartScheduler();
 
 
-
-
-
-    /* Force the counter to be placed into memory. */
-    volatile static int i = 0;
 
     /* Enter an infinite loop, just incrementing a counter. */
-    while (1)
-    {
-        i++;
-    }
+	for(;;)
+	{
+
+	}
     return 0;
+}
+
+void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData)
+{
+    userData = userData;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    if (status == kStatus_Success)
+    {
+    	xSemaphoreGiveFromISR(transfer_i2c_semaphore, &xHigherPriorityTaskWoken);
+    }
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
