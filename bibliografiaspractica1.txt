@@ -1,0 +1,21 @@
+referencias:
+
+https://www.sparkfun.com/datasheets/LCD/Monochrome/Nokia5110.pdf
+
+PCD8544 DATA SHEET
+
+48x84 pixels matrix LCD controller/driver
+
+8.1 Initialization
+Immediately following power-on, the contents of all internal
+registers and of the RAM are undefined. A RES pulse
+must be applied. Attention should be paid to the
+possibility that the device may be damaged if not properly
+reset.
+All internal registers are reset by applying an external RES
+pulse (active LOW) at pad 31, within the specified time.
+However, the RAM contents are still undefined. The state
+after reset is described in Section 8.2.
+The RES input must be =0.3VDD when VDD reaches VDDmin
+(or higher) within a maximum time of 100 ms after VDD
+goes HIGH (see Fig.16).

@@ -14,39 +14,56 @@
 	    The SPI device driver needs to be completed.
  */
 
- 
-#include "DatatypeDefinitions.h"
 #include "LCDNokia5110.h"
 #include "LCDNokia5110Images.h"
-#include "GlobalFunctions.h"
 
-
-
+#if example_lcd
 /*! This array hold the initial picture that is shown in the LCD*/
 extern const uint8 ITESO[504];
+#endif
 
-typedef enum
+
+void nokia_lcd_init_task(void * pvParameters)
 {
+    static uint8_t first_line[] = "No mas de 16";
+    GPIO_ClearPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
+    vTaskDelay(100);/**delay of 100ms for properly reset*/
+    GPIO_SetPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
 
-	first_row = 0, second_row, third_row, fourth_row, fifth_row, sixth_row
+    LCDNokia_init();
 
-} lcd_row_type_e;
 
-void printline(uint8_t NormalOrInverse, uint8_t * string, lcd_row_type_e row);
+    for(;;)
+    {
+        printline(Normal_print, first_line, first_row);
+        printline(Inverse_print, first_line, second_row);
+        vTaskDelete(NULL);
+    }
+
+}
+
 
 int main(void)
 {
-	static uint8_t first_line[] = "No mas de 16";
+
 #if example_lcd
 	uint8 string1[]="ITESO"; /*! String to be printed in the LCD*/
 	uint8 string2[]="uMs y DSPs"; /*! String to be printed in the LCD*/
 #endif
-	LCDNokia_init(); /*! Configuration function for the LCD */
-	LCDNokia_clear();/*! It clears the information printed in the LCD*/
-	printline(0, first_line, first_row);
-	printline(1, first_line, second_row);
-		for(;;) {
 
+	/**Configure control pins*/
+	config_lcd_spi_pins();
+
+    xTaskCreate(nokia_lcd_init_task, "lcd_nokia_init", 200, NULL,
+            configMAX_PRIORITIES, NULL);
+
+    NVIC_EnableIRQ(SPI0_IRQn);
+    NVIC_SetPriority(SPI0_IRQn, 5);
+
+    vTaskStartScheduler();
+
+		for(;;)
+		{
 #if example_lcd
 			LCDNokia_clear();/*! It clears the information printed in the LCD*/
 			LCDNokia_bitmap(&ITESO[0]); /*! It prints an array that hold an image, in this case is the initial picture*/
@@ -68,33 +85,8 @@ int main(void)
 			delay(65000);
 #endif
 
-
-
-
 		}
 	
 	return 0;
 }
 
-void printline(uint8_t NormalOrInverse, uint8_t * string, lcd_row_type_e row)
-{
-
-//	LCDNokia_writeByte(LCD_CMD, 0x20); //We must send 0x20 before modifying the display control mode
-//
-//	if(NormalOrInverse)
-//	{
-//		LCDNokia_writeByte(LCD_CMD, 0x0D); //Set display control, normal mode. 0x0D for inverse
-//	}
-//	else
-//	{
-//		LCDNokia_writeByte(LCD_CMD, 0x0C); //Set display control, normal mode. 0x0D for inverse
-//	}
-
-	LCDNokia_gotoXY(0, row);
-
-
-if(NormalOrInverse)
-	LCDNokia_sendString(string, 1);
-else
-	LCDNokia_sendString(string, 0);
-}

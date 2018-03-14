@@ -13,10 +13,10 @@
 uint8_t masterRxData[TRANSFER_SIZE] = {0U};
 uint8_t masterTxData[TRANSFER_SIZE] = {0U};
 
-dspi_master_handle_t g_m_handle;
-volatile bool isTransferCompleted = false;
+static dspi_master_handle_t g_m_handle;
+SemaphoreHandle_t transfer_dspi_semaphore;
 
-static const uint8 ASCII[][5] =
+static const uint8_t ASCII[][5] =
 {
  {0x00, 0x00, 0x00, 0x00, 0x00} // 20  
 ,{0x00, 0x00, 0x5f, 0x00, 0x00} // 21 !
@@ -120,20 +120,31 @@ static const uint8 ASCII[][5] =
  * Code
  ******************************************************************************/
 
-void SPI_init(void)
+void config_lcd_spi_pins(void)
 {
+    /**Configures LCD data, CMD and reset pins as outputs*/
+    static dspi_master_config_t masterConfig;
+    static gpio_pin_config_t lcd_config_gpio = { kGPIO_DigitalOutput, 1 };
+    static port_pin_config_t lcd_gpio_config =
+    { kPORT_PullDisable, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
+            kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAsGpio,
+            kPORT_UnlockRegister };
 
-    dspi_master_config_t masterConfig;
+    CLOCK_EnableClock(kCLOCK_PortD);
 
-	static port_pin_config_t lcd_config = { kPORT_PullDisable, kPORT_SlowSlewRate,
-			kPORT_PassiveFilterDisable, kPORT_OpenDrainDisable,
-			kPORT_LowDriveStrength, kPORT_MuxAlt2, kPORT_UnlockRegister };
+    /**Configures LCD data, CMD and reset as GPIO pins*/
+    PORT_SetPinConfig(PORTD, LCD_DC_PIN, &lcd_gpio_config);
+    PORT_SetPinConfig(PORTD, LCD_RESET_PIN, &lcd_gpio_config);
+
+    GPIO_PinInit(GPIOD, LCD_DC_PIN, &lcd_config_gpio);
+    GPIO_PinInit(GPIOD, LCD_RESET_PIN, &lcd_config_gpio);
 
 	/**Configures LCD_CLK_PIN and LCD_DIN_PIN as SPI pins*/
-	PORT_SetPinConfig(PORTD, LCD_CLK_PIN, &lcd_config);
-	PORT_SetPinConfig(PORTD, LCD_DIN_PIN, &lcd_config);
+	PORT_SetPinMux(PORTD, LCD_CLK_PIN, kPORT_MuxAlt2);
+	PORT_SetPinMux(PORTD, LCD_DIN_PIN, kPORT_MuxAlt2);
 	masterConfig.ctarConfig.cpol = kDSPI_ClockPolarityActiveLow;
 	masterConfig.ctarConfig.cpha = kDSPI_ClockPhaseSecondEdge;
+
 	DSPI_MasterGetDefaultConfig(&masterConfig);
 
 	DSPI_MasterInit(LCD_DSPI_MASTER_BASEADDR, &masterConfig,
@@ -142,53 +153,32 @@ void SPI_init(void)
 	DSPI_MasterTransferCreateHandle(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			DSPI_MasterUserCallback, NULL);
 
+	transfer_dspi_semaphore = xSemaphoreCreateBinary();
 }
 
-void LCDNokia_init(void) {
-
-	static port_pin_config_t lcd_config = { kPORT_PullDisable, kPORT_SlowSlewRate,
-			kPORT_PassiveFilterDisable, kPORT_OpenDrainDisable,
-			kPORT_LowDriveStrength, kPORT_MuxAsGpio, kPORT_UnlockRegister };
-
-	CLOCK_EnableClock(kCLOCK_PortD);
-	
-	/**Configures LCD data, CMD and reset as GPIO pins*/
-	PORT_SetPinConfig(PORTD, LCD_DC_PIN, &lcd_config);
-	PORT_SetPinConfig(PORTD, LCD_RESET_PIN, &lcd_config);
-	
-	/**Configures LCD data, CMD and reset pins as outputs*/
-	gpio_pin_config_t lcd_config_gpio = { kGPIO_DigitalOutput, 1 };
-	GPIO_PinInit(GPIOD, LCD_DC_PIN, &lcd_config_gpio);
-	GPIO_PinInit(GPIOD, LCD_RESET_PIN, &lcd_config_gpio);
-
-    /**Configure control pins*/
-	GPIO_ClearPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
-	LCD_delay();
-	GPIO_SetPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
-
-	SPI_init();
-
+void LCDNokia_init(void)
+{
 	LCDNokia_writeByte(LCD_CMD, 0x21); //Tell LCD that extended commands follow
 	LCDNokia_writeByte(LCD_CMD, 0xB1); //Set LCD Vop (Contrast): Try 0xBF(good @ 3.3V) or 0xBF if your display is too white
 	LCDNokia_writeByte(LCD_CMD, 0x04); //Set Temp coefficent
 	LCDNokia_writeByte(LCD_CMD, 0x14); //LCD bias mode 1:48: Try 0x13 or 0x14
 
 	LCDNokia_writeByte(LCD_CMD, 0x20); //We must send 0x20 before modifying the display control mode
-	LCDNokia_writeByte(LCD_CMD, 0x0C); //Set display control, normal mode. 0x0D for inverse}
-
+	LCDNokia_writeByte(LCD_CMD, 0x0C); //Set display control, normal mode. 0x0D for inverse
+	LCDNokia_clear();/*! It clears the information printed in the LCD*/
 }
 
-void LCDNokia_bitmap(const uint8* my_array){
-	uint16 index=0;
+void LCDNokia_bitmap(const uint8_t* my_array){
+    uint16_t index=0;
   for (index = 0 ; index < (LCD_X * LCD_Y / 8) ; index++)
 	  LCDNokia_writeByte(LCD_DATA, *(my_array+index));
 }
 
 
 
-void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
+void LCDNokia_writeByte(uint8_t DataOrCmd, uint8_t data)
 {
-	dspi_transfer_t masterXfer;
+	static dspi_transfer_t masterXfer;
 
 	if(DataOrCmd)
 		GPIO_SetPinsOutput(GPIOD, 1 << LCD_DC_PIN);
@@ -198,7 +188,6 @@ void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
 	DSPI_StartTransfer(LCD_DSPI_MASTER_BASEADDR);
 
 	/* Start master transfer, send data to slave */
-	isTransferCompleted = false;
 	masterXfer.txData = &data;
 	masterXfer.rxData = NULL;
 	masterXfer.dataSize = TRANSFER_SIZE;
@@ -208,15 +197,13 @@ void LCDNokia_writeByte(uint8 DataOrCmd, uint8 data)
 	DSPI_MasterTransferNonBlocking(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			&masterXfer);
 
-	/* Wait transfer complete */
-	while (!isTransferCompleted) {
-	}
+	xSemaphoreTake(transfer_dspi_semaphore, portMAX_DELAY);
 
 	DSPI_StopTransfer(LCD_DSPI_MASTER_BASEADDR);
 }
 
-void LCDNokia_sendChar(uint8 character, uint8_t bw) {
-  uint16 index = 0; 
+void LCDNokia_sendChar(uint8_t character, uint8_t bw) {
+  uint16_t index = 0;
 	
   //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
 
@@ -238,39 +225,47 @@ void LCDNokia_sendChar(uint8 character, uint8_t bw) {
   //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
 }
 
-void LCDNokia_sendString(uint8 *characters, uint8_t bw) {
+void LCDNokia_sendString(uint8_t *characters, uint8_t bw) {
   while (*characters)
 	  LCDNokia_sendChar(*characters++, bw);
 }
 
 void LCDNokia_clear(void) {
-	uint16 index = 0;
+	uint16_t index = 0;
   for (index = 0 ; index < (LCD_X * LCD_Y / 8) ; index++)
 	  LCDNokia_writeByte(LCD_DATA, 0x00);
   LCDNokia_gotoXY(0, 0); //After we clear the display, return to the home position
 }
 
-void LCDNokia_gotoXY(uint8 x, uint8 y) {
+void LCDNokia_gotoXY(uint8_t x, uint8_t y) {
 	LCDNokia_writeByte(LCD_CMD, 0x80 | x);  // Column.
 	LCDNokia_writeByte(LCD_CMD, 0x40 | y);  // Row.  ?
 }
 
-void LCD_delay(void)
+void printline(print_line_type_e NormalOrInverse, uint8_t * string, lcd_row_type_e row)
 {
-	int counter;
-	
-	for(counter=0; counter<1500; counter++) 
-	{	   
-		
-	}
+
+    LCDNokia_gotoXY(0, row);
+
+    if (NormalOrInverse)
+    {
+        LCDNokia_sendString(string, 1);
+    }
+    else
+    {
+        LCDNokia_sendString(string, 0);
+    }
+
 }
 
 void DSPI_MasterUserCallback(SPI_Type *base, dspi_master_handle_t *handle, status_t status, void *userData)
 {
-    if (status == kStatus_Success)
-    {
-        __NOP();
-    }
+    userData = userData;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    isTransferCompleted = true;
+    if (status == kStatus_Success) {
+        xSemaphoreGiveFromISR(transfer_dspi_semaphore,
+                &xHigherPriorityTaskWoken);
+    }
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
