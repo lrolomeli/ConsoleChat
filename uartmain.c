@@ -68,6 +68,8 @@ typedef struct {
 #define EVENT_BT_RX (1 << 2)
 #define EVENT_BT_TX (1 << 3)
 
+#define EVENT_PRINT (1 << 4)
+
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -86,7 +88,8 @@ uart_parameters_type bluetooth;
 
 uart_handle_t g_uartHandle1;
 
-SemaphoreHandle_t tx_semaphore;
+SemaphoreHandle_t tx_mutex;
+SemaphoreHandle_t rx_mutex;
 EventGroupHandle_t uart_events_g;
 
 uint8_t g_tipString[] =
@@ -105,33 +108,31 @@ uint8_t g_rxBuffer = 0;
 
 void uart_transmitter_task(void * pvParameters)
 {
-	/**
-	 * Cuando queramos mandar un mensaje por pantalla
-	 * es necesario despertar esta funcion por medio de un give
-	 * al semaforo tx_semaphore
-	 */
+
 	static uart_transfer_t xfer;
+
 	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
 	/* Send g_tipString out. */
 	xfer.data = g_tipString;
 	xfer.dataSize = sizeof(g_tipString) - 1;
 
-#if debug_print_task_mutex_sem
-	volatile bool first_time = true;
-#endif
-
 	for(;;)
 	{
-#if debug_print_task_mutex_sem
-		/* example_printf. */
-		if(first_time)//si se quiere imprimir se manda a la funcion un booleano casteado
-		{
-			first_time = false;
-		}
+#ifdef debug_store_rx_uart
+	    xEventGroupSetBits(uart_events_g, EVENT_PRINT);
 #endif
-	    	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &xfer);
-	    	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-	    	vTaskDelete(NULL);
+        xEventGroupWaitBits(uart_events_g, EVENT_PRINT, pdTRUE, pdTRUE,
+                portMAX_DELAY);
+
+        xSemaphoreTake(tx_mutex, portMAX_DELAY);
+
+        UART_TransferSendNonBlocking(uart_param->xuart,
+                &(uart_param->uart_handle), &xfer);
+
+        xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
+                portMAX_DELAY);
+
+        xSemaphoreGive(tx_mutex);
 
 	}
 
@@ -144,9 +145,10 @@ void uart_transceiver_task(void * pvParameters)
 	uart_transfer_t receiveXfer;
 	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
 
-//	static uint8_t phrase_size = 0;
-//	static uint8_t phrase[50] =
-//	{ 0 };
+#ifdef debug_store_rx_uart
+	static uint8_t phrase_size = 0;
+    static uint8_t phrase[50] = {0};
+#endif
 
     /* Start to echo. */
     sendXfer.data = &g_txBuffer;
@@ -155,80 +157,63 @@ void uart_transceiver_task(void * pvParameters)
     receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
 
 
-
+    /* When no receiving transfers are happening this task will be suspend and whoever
+     * take the semaphore first would be executed first. */
     for(;;)
     {
+        xSemaphoreTake(rx_mutex, portMAX_DELAY);
+
+        /* The first UART task which is called, prepares to receive but the buffer is not ready
+         * until an interrupt occurs. */
     	UART_TransferReceiveNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &receiveXfer, NULL);
+
+    	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
+    	 * it could be interrupted in the middle of setting values and other task may corrupt the
+    	 * receive buffer for this reason we use MUTEX to protect the UART. */
     	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+    	xSemaphoreGive(rx_mutex);
+
+    	/* Fills the transmission buffer. */
     	g_txBuffer = g_rxBuffer;
+
+#ifdef debug_store_rx_uart
+    	if (('\r' != *(sendXfer.data)) && ('\b' != *(sendXfer.data))
+                && (phrase_size < 50))
+    	{
+            *(phrase + phrase_size) = *(sendXfer.data);
+            phrase_size++;
+        }
+        else if ('\b' == *(sendXfer.data) && phrase_size < 50)
+        {
+            phrase_size = (phrase_size > 0) ? phrase_size - 1 : 0;
+        }
+        else if ('\r' == *(sendXfer.data) && phrase_size < 50)
+        {
+            phrase_size = 0;
+            /* Save phrase and use it for something. */
+        }
+        else
+        {
+            phrase_size = 0;
+        }
+#endif
+
+    	xSemaphoreTake(tx_mutex, portMAX_DELAY);
+
+    	/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
     	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &sendXfer);
+
+    	/* In case another task want to send the MUTEX must be given before */
     	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+    	xSemaphoreGive(tx_mutex);
+
     }
-
-
-//	for(;;)
-//	{
-//		/* If RX is idle and g_rxBuffer is empty, start to read data to g_rxBuffer. */
-//		    /* Si no se encuentra recibiendo y el buffer de recepcion esta vacio. */
-//		    if ((!rxOnGoing) && rxBufferEmpty)
-//		    {
-//		        /**entonces puedes decir que ahora ya se encuentra recibiendo*/
-//		        rxOnGoing = true;
-//		        /**puedes empezar a recibir*/
-//		        UART_TransferReceiveNonBlocking(DEMO_UART, &g_uartHandle, &receiveXfer, NULL);
-//		    }
-//
-//		    /* If TX is idle and g_txBuffer is full, start to send data. */
-//		    /* Si no se encuentra transmitiendo y el buffer de transmision esta lleno. */
-//		    if ((!txOnGoing) && txBufferFull)
-//		    {
-//
-//		    	if('\r' != *(sendXfer.data) && '\b' != *(sendXfer.data) && phrase_size < 50)
-//		    	{
-//		    		*(phrase + phrase_size) = *(sendXfer.data);
-//		    		phrase_size++;
-//		    	}
-//		    	else if('\b' == *(sendXfer.data) && phrase_size < 50)
-//		    	{
-//		    		phrase_size = (phrase_size > 0) ? phrase_size - 1 : 0;
-//		    	}
-//		    	else if('\r' == *(sendXfer.data) && phrase_size < 50)
-//		    	{
-//		    		phrase_size = 0;
-//		    		//guardar frase y utilizarla
-//		    	}
-//		    	else
-//		    	{
-//		    		phrase_size = 0;
-//		    	}
-//
-//		        /**entonces ya se encuentra transmitiendo*/
-//		        txOnGoing = true;
-//		        /**comienza a transmitir lo que hay en el buffer*/
-//		        UART_TransferSendNonBlocking(DEMO_UART, &g_uartHandle, &sendXfer);
-//
-//		    }
-//
-//		    /* If g_txBuffer is empty and g_rxBuffer is full, copy g_rxBuffer to g_txBuffer. */
-//		    /* Si el buffer de recepcion no esta vacio y el buffer de transmision tampoco. */
-//		    if ((!rxBufferEmpty) && (!txBufferFull))
-//		    {
-//		        /**entonces copia lo que hay en el buffer de recepcion al de transmision*/
-//		        memcpy(&g_txBuffer, &g_rxBuffer, ECHO_BUFFER_LENGTH);
-//		        /**el buffer de recepcion esta vacio*/
-//		        rxBufferEmpty = true;
-//		        /**el buffer de transmision esta lleno*/
-//		        txBufferFull = true;
-//		    }
-//	}
-
 
 }
 
 int main(void)
 {
     uart_config_t config;
-
     uart_config_t config1;
 
 	cpu.rx_event = EVENT_RX;
@@ -285,8 +270,10 @@ int main(void)
 	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
 	        configMAX_PRIORITIES - 2, NULL);
 
-
+	rx_mutex = xSemaphoreCreateMutex();
+	tx_mutex = xSemaphoreCreateMutex();
 	uart_events_g = xEventGroupCreate();
+
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
     NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
 
