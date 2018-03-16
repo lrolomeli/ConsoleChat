@@ -82,6 +82,7 @@ void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status,
  ******************************************************************************/
 uart_handle_t g_uartHandle;
 uart_parameters_type cpu;
+uart_parameters_type bluetooth;
 
 uart_handle_t g_uartHandle1;
 
@@ -229,10 +230,6 @@ int main(void)
     uart_config_t config;
 
     uart_config_t config1;
-
-
-
-	uart_parameters_type bluetooth;
 
 	cpu.rx_event = EVENT_RX;
 	cpu.tx_event = EVENT_TX;
