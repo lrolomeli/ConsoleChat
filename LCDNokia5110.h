@@ -11,7 +11,11 @@
 #include "fsl_gpio.h"
 #include "fsl_dspi.h"
 #include "fsl_port.h"
-#include "freeRTOS.h"
+#include "fsl_debug_console.h"
+#include "board.h"
+#include "pin_mux.h"
+#include "clock_config.h"
+#include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 

@@ -32,17 +32,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "terminal.h"
 #include "board.h"
 #include "fsl_uart.h"
 #include "fsl_port.h"
 #include "fsl_gpio.h"
 #include "pin_mux.h"
 #include "clock_config.h"
-#include "freeRTOS.h"
+#include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 #include "event_groups.h"
-
 /*******************************************************************************
  * Structures
  ******************************************************************************/
@@ -72,30 +72,21 @@ typedef struct {
 
 #define EVENT_ECHO (1 << 4)
 #define EVENT_ECHO_BLUETOOTH (1 << 5)
-
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-void terminal_init(void);
+void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
 
-/* UART user callback */
-void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
+void UART_UserCallback_bt(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
 
-#ifdef debug_terminal
-void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
-#endif
 /*******************************************************************************
  * Variables
  ******************************************************************************/
 EventGroupHandle_t uart_events_g;
 
 /*******************************************************************************
- * Code
+ * TASKS CODE
  ******************************************************************************/
-/*!
- * @brief Main function
- */
-
 void uart_transmitter_task(void * pvParameters)
 {
 
@@ -221,96 +212,106 @@ void uart_transceiver_task(void * pvParameters)
 
 }
 
-int main(void)
-{
-    BOARD_InitPins();
-    BOARD_BootClockRUN();
-
-    terminal_init();
-	vTaskStartScheduler();
-
-    for(;;)
-    {
-
-    }
-}
-
+/*******************************************************************************
+ * FUNCTIONS
+ ******************************************************************************/
 void terminal_init(void)
 {
 	static uart_parameters_type cpu;
-#ifdef debug_terminal
 	static uart_parameters_type bluetooth;
-#endif
-	static uart_handle_t g_uartHandle;
-#ifdef debug_terminal
-	static uart_handle_t g_uartHandle1;
-#endif
-	static uart_config_t config;
-#ifdef debug_terminal
-    static uart_config_t config1;
-#endif
+
+	static uart_handle_t g_uartHandle_ter;
+	static uart_handle_t g_uartHandle_bt;
+
+	static uart_config_t config_ter;
+    static uart_config_t config_bt;
+
+	/*******************************************************************************
+	 * TASKS PARAMETERS
+	 ******************************************************************************/
 	cpu.rx_event = EVENT_RX;
 	cpu.tx_event = EVENT_TX;
-	cpu.uart_handle = g_uartHandle;
+	cpu.uart_handle = g_uartHandle_ter;
 	cpu.xuart = UART0;
-#ifdef debug_terminal
+
 	bluetooth.rx_event = EVENT_BT_RX;
 	bluetooth.tx_event = EVENT_BT_TX;
-	bluetooth.uart_handle = g_uartHandle1;
+	bluetooth.uart_handle = g_uartHandle_bt;
 	bluetooth.xuart = UART1;
-#endif
-    //reloj uart clockenable
-    //pins tx and rx config as uart
 
+	/*******************************************************************************
+	 * GPIO UART CONFIGURATION
+	 ******************************************************************************/
     CLOCK_EnableClock(kCLOCK_PortB);
     CLOCK_EnableClock(kCLOCK_Uart0);
-#ifdef debug_terminal
+
     CLOCK_EnableClock(kCLOCK_PortC);
     CLOCK_EnableClock(kCLOCK_Uart1);
-#endif
+
 	PORT_SetPinMux(PORTB, 10, kPORT_MuxAlt3);
     PORT_SetPinMux(PORTB, 11, kPORT_MuxAlt3);
-#ifdef debug_terminal
+
 	PORT_SetPinMux(PORTC, 3, kPORT_MuxAlt3);
     PORT_SetPinMux(PORTC, 4, kPORT_MuxAlt3);
-#endif
 
-    UART_GetDefaultConfig(&config);
-    config.enableTx = true;
-    config.enableRx = true;
+	/*******************************************************************************
+	 * UART BLUETOOTH OR TERMINAL CONFIGURATION
+	 ******************************************************************************/
+    UART_GetDefaultConfig(&config_ter);
+    config_ter.enableTx = true;
+    config_ter.enableRx = true;
 
-    UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
-    UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback, NULL);
+    UART_GetDefaultConfig(&config_bt);
+    config_bt.enableTx = true;
+    config_bt.enableRx = true;
+    config_bt.baudRate_Bps = 9600;
 
-	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE, (void *) &cpu,
-	        configMAX_PRIORITIES - 1, NULL);
+	/*******************************************************************************
+	 * BLUETOOTH AND TERMINAL INITIALIZATION AND HANDLER CREATION
+	 ******************************************************************************/
+    UART_Init(DEMO_UART, &config_ter, DEMO_UART_CLK_FREQ);
+	UART_Init(UART1, &config_bt, CLOCK_GetFreq(UART1_CLK_SRC));
 
-#ifdef debug_terminal
-    UART_GetDefaultConfig(&config1);
-    config1.enableTx = true;
-    config1.enableRx = true;
-    config1.baudRate_Bps = 9600;
+	UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback_ter,
+			NULL);
+	UART_TransferCreateHandle(UART1, &bluetooth.uart_handle, UART_UserCallback_bt,
+			NULL);
 
+	/*******************************************************************************
+	 * TASKS OF THE MODULE
+	 ******************************************************************************/
+	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE,
+			(void *) &cpu,
+			configMAX_PRIORITIES - 1, NULL);
 
-    UART_Init(UART1, &config1, CLOCK_GetFreq(UART1_CLK_SRC));
-    UART_TransferCreateHandle(UART1, &bluetooth.uart_handle, UART_UserCallback1, NULL);
-	xTaskCreate(uart_transceiver_task, "bluetooth", configMINIMAL_STACK_SIZE, (void *) &bluetooth,
-	        configMAX_PRIORITIES - 1, NULL);
-#endif
+	xTaskCreate(uart_transceiver_task, "bluetooth", configMINIMAL_STACK_SIZE,
+			(void *) &bluetooth,
+			configMAX_PRIORITIES - 1, NULL);
+
 	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
-	        configMAX_PRIORITIES, NULL);
+	configMAX_PRIORITIES, NULL);
 
-	uart_events_g = xEventGroupCreate();
-
+	/*******************************************************************************
+	 * INTERRUPT HABILITATION
+	 ******************************************************************************/
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
     NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
 
     NVIC_EnableIRQ(UART1_RX_TX_IRQn);
     NVIC_SetPriority(UART1_RX_TX_IRQn, 6);
+
+	/*******************************************************************************
+	 * EVENTS CREATION
+	 ******************************************************************************/
+	uart_events_g = xEventGroupCreate();
+
 }
 
-/* UART user callback */
-void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
+/*******************************************************************************
+ * CALLBACKS
+ ******************************************************************************/
+/* UART terminal user callback */
+void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
     userData = userData;
 
@@ -330,8 +331,8 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-#ifdef debug_terminal
-void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
+/* UART bluetooth user callback */
+void UART_UserCallback1_bt(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
     userData = userData;
 
@@ -350,4 +351,3 @@ void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status,
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
-#endif

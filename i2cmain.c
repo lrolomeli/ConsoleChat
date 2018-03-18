@@ -42,7 +42,7 @@
 #include "fsl_i2c.h"
 #include "fsl_gpio.h"
 #include "fsl_port.h"
-#include "freeRTOS.h"
+#include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 
