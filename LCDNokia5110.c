@@ -131,6 +131,7 @@ void config_lcd_spi_pins(void)
             kPORT_UnlockRegister };
 
     CLOCK_EnableClock(kCLOCK_PortD);
+    CLOCK_EnableClock(kCLOCK_Spi0);
 
     /**Configures LCD data, CMD and reset as GPIO pins*/
     PORT_SetPinConfig(PORTD, LCD_DC_PIN, &lcd_gpio_config);
@@ -142,10 +143,10 @@ void config_lcd_spi_pins(void)
 	/**Configures LCD_CLK_PIN and LCD_DIN_PIN as SPI pins*/
 	PORT_SetPinMux(PORTD, LCD_CLK_PIN, kPORT_MuxAlt2);
 	PORT_SetPinMux(PORTD, LCD_DIN_PIN, kPORT_MuxAlt2);
-	masterConfig.ctarConfig.cpol = kDSPI_ClockPolarityActiveLow;
-	masterConfig.ctarConfig.cpha = kDSPI_ClockPhaseSecondEdge;
 
 	DSPI_MasterGetDefaultConfig(&masterConfig);
+	//masterConfig.ctarConfig.cpol = kDSPI_ClockPolarityActiveLow;
+	//masterConfig.ctarConfig.cpha = kDSPI_ClockPhaseSecondEdge;
 
 	DSPI_MasterInit(LCD_DSPI_MASTER_BASEADDR, &masterConfig,
 			CLOCK_GetFreq(DSPI0_CLK_SRC));

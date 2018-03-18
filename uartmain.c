@@ -69,6 +69,8 @@ typedef struct {
 #define EVENT_BT_TX (1 << 3)
 
 #define EVENT_PRINT (1 << 4)
+#define EVENT_ECHO (1 << 5)
+#define EVENT_ECHO_BLUETOOTH (1 << 6)
 
 /*******************************************************************************
  * Prototypes
@@ -88,8 +90,8 @@ uart_parameters_type bluetooth;
 
 uart_handle_t g_uartHandle1;
 
-SemaphoreHandle_t tx_mutex;
-SemaphoreHandle_t rx_mutex;
+SemaphoreHandle_t mutex_uart_1;
+SemaphoreHandle_t mutex_uart_0;
 EventGroupHandle_t uart_events_g;
 
 uint8_t g_tipString[] =
@@ -120,20 +122,22 @@ void uart_transmitter_task(void * pvParameters)
 	{
 #ifdef debug_store_rx_uart
 	    xEventGroupSetBits(uart_events_g, EVENT_PRINT);
-#endif
+
         xEventGroupWaitBits(uart_events_g, EVENT_PRINT, pdTRUE, pdTRUE,
                 portMAX_DELAY);
 
-        xSemaphoreTake(tx_mutex, portMAX_DELAY);
-
+        xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
+        xSemaphoreGive(mutex_uart_0);
+#endif
         UART_TransferSendNonBlocking(uart_param->xuart,
                 &(uart_param->uart_handle), &xfer);
 
         xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
                 portMAX_DELAY);
 
-        xSemaphoreGive(tx_mutex);
+        xEventGroupSetBits(uart_events_g, EVENT_ECHO);
 
+        vTaskDelete(NULL);
 	}
 
 }
@@ -156,12 +160,16 @@ void uart_transceiver_task(void * pvParameters)
     receiveXfer.data = &g_rxBuffer;
     receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
 
-
+    xEventGroupWaitBits(uart_events_g, EVENT_ECHO|EVENT_ECHO_BLUETOOTH, pdTRUE, pdFALSE, portMAX_DELAY);
     /* When no receiving transfers are happening this task will be suspend and whoever
      * take the semaphore first would be executed first. */
     for(;;)
     {
-        xSemaphoreTake(rx_mutex, portMAX_DELAY);
+
+    	/* UART0 and UART1 are different peripherals
+    	 * in case we are using the same UART for both tasks
+    	 * we should protect it with a MUTEX*/
+        //xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
 
         /* The first UART task which is called, prepares to receive but the buffer is not ready
          * until an interrupt occurs. */
@@ -171,7 +179,8 @@ void uart_transceiver_task(void * pvParameters)
     	 * it could be interrupted in the middle of setting values and other task may corrupt the
     	 * receive buffer for this reason we use MUTEX to protect the UART. */
     	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-    	xSemaphoreGive(rx_mutex);
+
+    	//xSemaphoreGive(mutex_uart_0);
 
     	/* Fills the transmission buffer. */
     	g_txBuffer = g_rxBuffer;
@@ -198,14 +207,21 @@ void uart_transceiver_task(void * pvParameters)
         }
 #endif
 
-    	xSemaphoreTake(tx_mutex, portMAX_DELAY);
+    	//xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
 
     	/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
     	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &sendXfer);
 
     	/* In case another task want to send the MUTEX must be given before */
     	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-    	xSemaphoreGive(tx_mutex);
+
+    	//xSemaphoreGive(mutex_uart_0);
+
+    	/**In case that reception buffer is equal to [ESC] */
+    	if(' ' == g_txBuffer)
+    	{
+    		vTaskDelay(portMAX_DELAY);
+    	}
 
     }
 
@@ -253,7 +269,7 @@ int main(void)
     UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback, NULL);
 
 	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE, (void *) &cpu,
-	        configMAX_PRIORITIES, NULL);
+	        configMAX_PRIORITIES - 2, NULL);
 
 
     UART_GetDefaultConfig(&config1);
@@ -265,13 +281,13 @@ int main(void)
     UART_TransferCreateHandle(UART1, &bluetooth.uart_handle, UART_UserCallback1, NULL);
 
 	xTaskCreate(uart_transceiver_task, "bluetooth", configMINIMAL_STACK_SIZE, (void *) &bluetooth,
-	        configMAX_PRIORITIES-1, NULL);
+	        configMAX_PRIORITIES - 1, NULL);
 
 	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
-	        configMAX_PRIORITIES - 2, NULL);
+	        configMAX_PRIORITIES, NULL);
 
-	rx_mutex = xSemaphoreCreateMutex();
-	tx_mutex = xSemaphoreCreateMutex();
+	mutex_uart_0 = xSemaphoreCreateMutex();
+	mutex_uart_1 = xSemaphoreCreateMutex();
 	uart_events_g = xEventGroupCreate();
 
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
