@@ -43,6 +43,9 @@
 #include "semphr.h"
 #include "event_groups.h"
 
+/*******************************************************************************
+ * Structures
+ ******************************************************************************/
 typedef struct {
 
 	UART_Type * xuart;
@@ -61,45 +64,30 @@ typedef struct {
 #define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART0_CLK_SRC)
 #define ECHO_BUFFER_LENGTH 1
 
-
 #define EVENT_RX (1 << 0)
 #define EVENT_TX (1 << 1)
 
 #define EVENT_BT_RX (1 << 2)
 #define EVENT_BT_TX (1 << 3)
 
-#define EVENT_PRINT (1 << 4)
-#define EVENT_ECHO (1 << 5)
-#define EVENT_ECHO_BLUETOOTH (1 << 6)
+#define EVENT_ECHO (1 << 4)
+#define EVENT_ECHO_BLUETOOTH (1 << 5)
 
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
+void terminal_init(void);
 
 /* UART user callback */
 void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
 
+#ifdef debug_terminal
 void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
-
+#endif
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-uart_handle_t g_uartHandle;
-uart_parameters_type cpu;
-uart_parameters_type bluetooth;
-
-uart_handle_t g_uartHandle1;
-
-SemaphoreHandle_t mutex_uart_1;
-SemaphoreHandle_t mutex_uart_0;
 EventGroupHandle_t uart_events_g;
-
-uint8_t g_tipString[] =
-    "\r\nYou have entered a valid value\r\n";
-
-uint8_t g_txBuffer = 0;
-uint8_t g_rxBuffer = 0;
-
 
 /*******************************************************************************
  * Code
@@ -112,32 +100,42 @@ void uart_transmitter_task(void * pvParameters)
 {
 
 	static uart_transfer_t xfer;
-
+	static uart_transfer_t receiveXfer;
+	static uint8_t data;
+	static uint8_t g_tipString[] =
+	    "\r\nYou have entered a valid value\r\n";
 	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
+
 	/* Send g_tipString out. */
 	xfer.data = g_tipString;
 	xfer.dataSize = sizeof(g_tipString) - 1;
+	receiveXfer.data = &data;
+	receiveXfer.dataSize = 1;
+    UART_TransferSendNonBlocking(uart_param->xuart,
+            &(uart_param->uart_handle), &xfer);
 
+    xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
+            portMAX_DELAY);
 	for(;;)
 	{
-#ifdef debug_store_rx_uart
-	    xEventGroupSetBits(uart_events_g, EVENT_PRINT);
+    	/* UART0 and UART1 are different peripherals
+    	 * in case we are using the same UART for both tasks
+    	 * we should protect it with a MUTEX*/
 
-        xEventGroupWaitBits(uart_events_g, EVENT_PRINT, pdTRUE, pdTRUE,
-                portMAX_DELAY);
+        /* The first UART task which is called, prepares to receive but the buffer is not ready
+         * until an interrupt occurs. */
+    	UART_TransferReceiveNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &receiveXfer, NULL);
 
-        xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
-        xSemaphoreGive(mutex_uart_0);
-#endif
-        UART_TransferSendNonBlocking(uart_param->xuart,
-                &(uart_param->uart_handle), &xfer);
+    	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
+    	 * it could be interrupted in the middle of setting values and other task may corrupt the
+    	 * receive buffer for this reason we use MUTEX to protect the UART. */
+    	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+    	if('0' < data && '9' > data)
+    	{
+            xEventGroupSetBits(uart_events_g, EVENT_ECHO);
+            vTaskDelay(portMAX_DELAY);
+    	}
 
-        xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
-                portMAX_DELAY);
-
-        xEventGroupSetBits(uart_events_g, EVENT_ECHO);
-
-        vTaskDelete(NULL);
 	}
 
 }
@@ -145,8 +143,11 @@ void uart_transmitter_task(void * pvParameters)
 
 void uart_transceiver_task(void * pvParameters)
 {
-	uart_transfer_t sendXfer;
-	uart_transfer_t receiveXfer;
+	static uart_transfer_t sendXfer;
+	static uart_transfer_t receiveXfer;
+	static uint8_t g_txBuffer;
+	static uint8_t g_rxBuffer;
+
 	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
 
 #ifdef debug_store_rx_uart
@@ -160,7 +161,7 @@ void uart_transceiver_task(void * pvParameters)
     receiveXfer.data = &g_rxBuffer;
     receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
 
-    xEventGroupWaitBits(uart_events_g, EVENT_ECHO|EVENT_ECHO_BLUETOOTH, pdTRUE, pdFALSE, portMAX_DELAY);
+    xEventGroupWaitBits(uart_events_g, EVENT_ECHO, pdTRUE, pdFALSE, portMAX_DELAY);
     /* When no receiving transfers are happening this task will be suspend and whoever
      * take the semaphore first would be executed first. */
     for(;;)
@@ -169,7 +170,6 @@ void uart_transceiver_task(void * pvParameters)
     	/* UART0 and UART1 are different peripherals
     	 * in case we are using the same UART for both tasks
     	 * we should protect it with a MUTEX*/
-        //xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
 
         /* The first UART task which is called, prepares to receive but the buffer is not ready
          * until an interrupt occurs. */
@@ -179,8 +179,6 @@ void uart_transceiver_task(void * pvParameters)
     	 * it could be interrupted in the middle of setting values and other task may corrupt the
     	 * receive buffer for this reason we use MUTEX to protect the UART. */
     	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-
-    	//xSemaphoreGive(mutex_uart_0);
 
     	/* Fills the transmission buffer. */
     	g_txBuffer = g_rxBuffer;
@@ -207,18 +205,14 @@ void uart_transceiver_task(void * pvParameters)
         }
 #endif
 
-    	//xSemaphoreTake(mutex_uart_0, portMAX_DELAY);
-
     	/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
     	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &sendXfer);
 
     	/* In case another task want to send the MUTEX must be given before */
     	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
 
-    	//xSemaphoreGive(mutex_uart_0);
-
     	/**In case that reception buffer is equal to [ESC] */
-    	if(' ' == g_txBuffer)
+    	if('\e' == g_txBuffer)
     	{
     		vTaskDelay(portMAX_DELAY);
     	}
@@ -229,37 +223,57 @@ void uart_transceiver_task(void * pvParameters)
 
 int main(void)
 {
-    uart_config_t config;
-    uart_config_t config1;
+    BOARD_InitPins();
+    BOARD_BootClockRUN();
 
+    terminal_init();
+	vTaskStartScheduler();
+
+    for(;;)
+    {
+
+    }
+}
+
+void terminal_init(void)
+{
+	static uart_parameters_type cpu;
+#ifdef debug_terminal
+	static uart_parameters_type bluetooth;
+#endif
+	static uart_handle_t g_uartHandle;
+#ifdef debug_terminal
+	static uart_handle_t g_uartHandle1;
+#endif
+	static uart_config_t config;
+#ifdef debug_terminal
+    static uart_config_t config1;
+#endif
 	cpu.rx_event = EVENT_RX;
 	cpu.tx_event = EVENT_TX;
 	cpu.uart_handle = g_uartHandle;
 	cpu.xuart = UART0;
-
+#ifdef debug_terminal
 	bluetooth.rx_event = EVENT_BT_RX;
 	bluetooth.tx_event = EVENT_BT_TX;
 	bluetooth.uart_handle = g_uartHandle1;
 	bluetooth.xuart = UART1;
-
-    BOARD_InitPins();
-    BOARD_BootClockRUN();
-
+#endif
     //reloj uart clockenable
     //pins tx and rx config as uart
 
     CLOCK_EnableClock(kCLOCK_PortB);
     CLOCK_EnableClock(kCLOCK_Uart0);
-
+#ifdef debug_terminal
     CLOCK_EnableClock(kCLOCK_PortC);
     CLOCK_EnableClock(kCLOCK_Uart1);
-
+#endif
 	PORT_SetPinMux(PORTB, 10, kPORT_MuxAlt3);
     PORT_SetPinMux(PORTB, 11, kPORT_MuxAlt3);
-
+#ifdef debug_terminal
 	PORT_SetPinMux(PORTC, 3, kPORT_MuxAlt3);
     PORT_SetPinMux(PORTC, 4, kPORT_MuxAlt3);
-
+#endif
 
     UART_GetDefaultConfig(&config);
     config.enableTx = true;
@@ -269,25 +283,23 @@ int main(void)
     UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback, NULL);
 
 	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE, (void *) &cpu,
-	        configMAX_PRIORITIES - 2, NULL);
+	        configMAX_PRIORITIES - 1, NULL);
 
-
+#ifdef debug_terminal
     UART_GetDefaultConfig(&config1);
     config1.enableTx = true;
     config1.enableRx = true;
     config1.baudRate_Bps = 9600;
 
+
     UART_Init(UART1, &config1, CLOCK_GetFreq(UART1_CLK_SRC));
     UART_TransferCreateHandle(UART1, &bluetooth.uart_handle, UART_UserCallback1, NULL);
-
 	xTaskCreate(uart_transceiver_task, "bluetooth", configMINIMAL_STACK_SIZE, (void *) &bluetooth,
 	        configMAX_PRIORITIES - 1, NULL);
-
+#endif
 	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
 	        configMAX_PRIORITIES, NULL);
 
-	mutex_uart_0 = xSemaphoreCreateMutex();
-	mutex_uart_1 = xSemaphoreCreateMutex();
 	uart_events_g = xEventGroupCreate();
 
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
@@ -295,13 +307,6 @@ int main(void)
 
     NVIC_EnableIRQ(UART1_RX_TX_IRQn);
     NVIC_SetPriority(UART1_RX_TX_IRQn, 6);
-
-	vTaskStartScheduler();
-
-    for(;;)
-    {
-
-    }
 }
 
 /* UART user callback */
@@ -325,6 +330,7 @@ void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, 
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
+#ifdef debug_terminal
 void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
     userData = userData;
@@ -344,4 +350,4 @@ void UART_UserCallback1(UART_Type *base, uart_handle_t *handle, status_t status,
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
-
+#endif
