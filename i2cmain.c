@@ -27,7 +27,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#if 0
 /**
  * @file    imu_read.c
  * @brief   Application entry point.
@@ -215,3 +215,4 @@ void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t s
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
+#endif

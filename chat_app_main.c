@@ -1,3 +1,4 @@
+#if 0
 #include "terminal.h"
 #include "lcd_func.h"
 
@@ -21,3 +22,4 @@ int main(void)
     }
 
 }
+#endif

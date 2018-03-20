@@ -310,6 +310,7 @@ void terminal_init(void)
 /*******************************************************************************
  * CALLBACKS
  ******************************************************************************/
+
 /* UART terminal user callback */
 void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
@@ -331,8 +332,9 @@ void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t stat
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
+
 /* UART bluetooth user callback */
-void UART_UserCallback1_bt(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
+void UART_UserCallback_bt(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
     userData = userData;
 
