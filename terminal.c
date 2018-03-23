@@ -39,10 +39,11 @@
 #include "fsl_gpio.h"
 #include "pin_mux.h"
 #include "clock_config.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "event_groups.h"
+#include "chat_app_main.h"
+//#include "FreeRTOS.h"
+//#include "task.h"
+//#include "semphr.h"
+//#include "event_groups.h"
 /*******************************************************************************
  * Structures
  ******************************************************************************/
@@ -87,49 +88,49 @@ EventGroupHandle_t uart_events_g;
 /*******************************************************************************
  * TASKS CODE
  ******************************************************************************/
-void uart_transmitter_task(void * pvParameters)
-{
-
-	static uart_transfer_t xfer;
-	static uart_transfer_t receiveXfer;
-	static uint8_t data;
-	static uint8_t g_tipString[] =
-	    "\r\nYou have entered a valid value\r\n";
-	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
-
-	/* Send g_tipString out. */
-	xfer.data = g_tipString;
-	xfer.dataSize = sizeof(g_tipString) - 1;
-	receiveXfer.data = &data;
-	receiveXfer.dataSize = 1;
-    UART_TransferSendNonBlocking(uart_param->xuart,
-            &(uart_param->uart_handle), &xfer);
-
-    xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
-            portMAX_DELAY);
-	for(;;)
-	{
-    	/* UART0 and UART1 are different peripherals
-    	 * in case we are using the same UART for both tasks
-    	 * we should protect it with a MUTEX*/
-
-        /* The first UART task which is called, prepares to receive but the buffer is not ready
-         * until an interrupt occurs. */
-    	UART_TransferReceiveNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &receiveXfer, NULL);
-
-    	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
-    	 * it could be interrupted in the middle of setting values and other task may corrupt the
-    	 * receive buffer for this reason we use MUTEX to protect the UART. */
-    	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-    	if('0' < data && '9' > data)
-    	{
-            xEventGroupSetBits(uart_events_g, EVENT_ECHO);
-            vTaskDelay(portMAX_DELAY);
-    	}
-
-	}
-
-}
+//void uart_transmitter_task(void * pvParameters)
+//{
+//
+//	static uart_transfer_t xfer;
+//	static uart_transfer_t receiveXfer;
+//	static uint8_t data;
+//	static uint8_t g_tipString[] =
+//	    "\r\nYou have entered a valid value\r\n";
+//	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
+//
+//	/* Send g_tipString out. */
+//	xfer.data = g_tipString;
+//	xfer.dataSize = sizeof(g_tipString) - 1;
+//	receiveXfer.data = &data;
+//	receiveXfer.dataSize = 1;
+//    UART_TransferSendNonBlocking(uart_param->xuart,
+//            &(uart_param->uart_handle), &xfer);
+//
+//    xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
+//            portMAX_DELAY);
+//	for(;;)
+//	{
+//    	/* UART0 and UART1 are different peripherals
+//    	 * in case we are using the same UART for both tasks
+//    	 * we should protect it with a MUTEX*/
+//
+//        /* The first UART task which is called, prepares to receive but the buffer is not ready
+//         * until an interrupt occurs. */
+//    	UART_TransferReceiveNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &receiveXfer, NULL);
+//
+//    	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
+//    	 * it could be interrupted in the middle of setting values and other task may corrupt the
+//    	 * receive buffer for this reason we use MUTEX to protect the UART. */
+//    	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+//    	if('0' < data && '9' >= data)
+//    	{
+//            xEventGroupSetBits(uart_events_g, EVENT_ECHO);
+//            vTaskDelay(portMAX_DELAY);
+//    	}
+//
+//	}
+//
+//}
 
 
 void uart_transceiver_task(void * pvParameters)
@@ -152,7 +153,7 @@ void uart_transceiver_task(void * pvParameters)
     receiveXfer.data = &g_rxBuffer;
     receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
 
-    xEventGroupWaitBits(uart_events_g, EVENT_ECHO, pdTRUE, pdFALSE, portMAX_DELAY);
+    //xEventGroupWaitBits(uart_events_g, EVENT_ECHO, pdTRUE, pdFALSE, portMAX_DELAY);
     /* When no receiving transfers are happening this task will be suspend and whoever
      * take the semaphore first would be executed first. */
     for(;;)
@@ -202,11 +203,13 @@ void uart_transceiver_task(void * pvParameters)
     	/* In case another task want to send the MUTEX must be given before */
     	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
 
+    	xEventGroupSetBits(get_menu_event(), 1<<(g_txBuffer - '0'));
+
     	/**In case that reception buffer is equal to [ESC] */
-    	if('\e' == g_txBuffer)
-    	{
+    	//if('\e' == g_txBuffer)
+    	//{
     		vTaskDelay(portMAX_DELAY);
-    	}
+    	//}
 
     }
 
@@ -220,8 +223,8 @@ void terminal_init(void)
 	static uart_parameters_type cpu;
 	static uart_parameters_type bluetooth;
 
-	static uart_handle_t g_uartHandle_ter;
-	static uart_handle_t g_uartHandle_bt;
+	//static uart_handle_t g_uartHandle_ter;
+	//static uart_handle_t g_uartHandle_bt;
 
 	static uart_config_t config_ter;
     static uart_config_t config_bt;
@@ -231,12 +234,12 @@ void terminal_init(void)
 	 ******************************************************************************/
 	cpu.rx_event = EVENT_RX;
 	cpu.tx_event = EVENT_TX;
-	cpu.uart_handle = g_uartHandle_ter;
+	//cpu.uart_handle = g_uartHandle_ter;
 	cpu.xuart = UART0;
 
 	bluetooth.rx_event = EVENT_BT_RX;
 	bluetooth.tx_event = EVENT_BT_TX;
-	bluetooth.uart_handle = g_uartHandle_bt;
+	//bluetooth.uart_handle = g_uartHandle_bt;
 	bluetooth.xuart = UART1;
 
 	/*******************************************************************************
@@ -288,8 +291,8 @@ void terminal_init(void)
 			(void *) &bluetooth,
 			configMAX_PRIORITIES - 1, NULL);
 
-	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
-	configMAX_PRIORITIES, NULL);
+//	xTaskCreate(uart_transmitter_task, "print_task", 110, (void *) &cpu,
+//	configMAX_PRIORITIES, NULL);
 
 	/*******************************************************************************
 	 * INTERRUPT HABILITATION
@@ -353,3 +356,4 @@ void UART_UserCallback_bt(UART_Type *base, uart_handle_t *handle, status_t statu
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
+

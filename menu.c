@@ -1,4 +1,4 @@
-
+#if 0
 #include "LCDNokia5110.h"
 
 /*******************************************************************************
@@ -281,3 +281,4 @@ void config_buttons(void)
 	g_menu_queue = xQueueCreate(1, sizeof(menu_msg_t));
 
 }
+#endif

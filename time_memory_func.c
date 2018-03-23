@@ -45,6 +45,8 @@
 #include "freeRTOS.h"
 #include "task.h"
 #include "semphr.h"
+#include "time_memory_func.h"
+#include "terminal.h"
 
 typedef struct
 {
@@ -106,7 +108,7 @@ void i2c_init_peripherals();
 SemaphoreHandle_t transfer_i2c_semaphore;
 SemaphoreHandle_t mutex_transfer_i2c;
 
-/**
+
 void write_mem(void * pvParameters)
 {
 	//////////////////////////////////////////ESCRIBIR MEMORIA LISTO//////////////////////////////////////////////////////////////////////
@@ -124,207 +126,210 @@ void write_mem(void * pvParameters)
 
 	for(;;)
 	{
+		xEventGroupWaitBits(get_menu_event(), 1 << 1, pdTRUE, pdTRUE,
+				portMAX_DELAY); //la tarea recibe el evento de escribir en memoria
+
 		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		I2C_MasterTransferNonBlocking(I2C0,  w_mem->handle, &masterXfer);
+		I2C_MasterTransferNonBlocking(I2C0, w_mem->handle, &masterXfer);
 		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
 		xSemaphoreGive(mutex_transfer_i2c);
 		vTaskDelete(NULL);
-}
-
-}
-
-void read_mem(void * pvParameters)
-{
-	static i2c_master_transfer_t masterXfer;
-	i2c_type * r_mem = (i2c_type *) pvParameters;
-
-	//////////////////////////////////////////LEER MEMORIA LISTO//////////////////////////////////////////////////////////////////////
-	masterXfer.slaveAddress = r_mem->slaveAddress;
-    masterXfer.direction = kI2C_Read;
-    masterXfer.subaddress = r_mem->subaddress;
-    masterXfer.subaddressSize = 2;
-    masterXfer.data = r_mem->data_buffer;
-    masterXfer.dataSize = r_mem->data_size;
-    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-	    I2C_MasterTransferNonBlocking(I2C0, r_mem->handle, &masterXfer);
-	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-	    xSemaphoreGive(mutex_transfer_i2c);
-
 	}
-}
-*/
-void init_clk(void * pvParameters)
-{
-	//////////////////////////////////////////ESCRIBIR CLK DEFAULT LISTO//////////////////////////////////////////////////////////////////////
-	static i2c_master_transfer_t masterXfer;
-	i2c_type * w_clk = (i2c_type*) pvParameters;
-
-	masterXfer.slaveAddress = w_clk->slaveAddress;
-	masterXfer.direction = kI2C_Write;
-	masterXfer.subaddress = w_clk->subaddress;
-	masterXfer.subaddressSize = 1;
-	masterXfer.data = w_clk->data_buffer;
-	masterXfer.dataSize = w_clk->data_size;
-	masterXfer.flags = kI2C_TransferDefaultFlag;
-
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-	    I2C_MasterTransferNonBlocking(I2C0, (w_clk->handle), &masterXfer);
-	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-	    xSemaphoreGive(mutex_transfer_i2c);
-		vTaskDelete(NULL);
-}
-
-}
-/**
-void read_time(void * pvParameters)
-{
-	static i2c_master_transfer_t masterXfer;
-	i2c_type * r_time = (i2c_type *) pvParameters;
-
-	//////////////////////////////////////////LEER TIEMPO LISTO//////////////////////////////////////////////////////////////////////
-	masterXfer.slaveAddress = r_time->slaveAddress;
-    masterXfer.direction = kI2C_Read;
-    masterXfer.subaddress = r_time->subaddress;
-    masterXfer.subaddressSize = 1;
-    masterXfer.data = r_time->data_buffer;
-    masterXfer.dataSize = r_time->data_size;
-    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-	    I2C_MasterTransferNonBlocking(I2C0, (r_time->handle), &masterXfer);
-	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-	    xSemaphoreGive(mutex_transfer_i2c);
-	    PRINTF("\r%x : %x : %x ", r_time->data_buffer[2], r_time->data_buffer[1], r_time->data_buffer[0]);
-
-	}
-}
-
-void write_time(void * pvParameters)
-{
-	//////////////////////////////////////////ESCRIBIR  medio listo//////////////////////////////////////////////////////////////////////
-	static i2c_master_transfer_t masterXfer;
-	i2c_type * w_time = (i2c_type*) pvParameters;
-
-		masterXfer.slaveAddress = w_time->slaveAddress;
-	    masterXfer.direction = kI2C_Write;
-	    masterXfer.subaddress = w_time->subaddress;
-	    masterXfer.subaddressSize = 1;
-	    masterXfer.data = w_time->data_buffer;
-	    masterXfer.dataSize =  w_time->data_size;;
-	    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		I2C_MasterTransferNonBlocking(I2C0,  w_time->handle, &masterXfer);
-		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-		xSemaphoreGive(mutex_transfer_i2c);
-		vTaskDelete(NULL);
-}
 
 }
 
-void format_of_hour(void * pvParameters)
-{
-	//////////////////////////////////////////ESCRIBIR escribir formato, medio liisto //////////////////////////////////////////////////////////////////////
-	static i2c_master_transfer_t masterXfer;
-	i2c_type * f_time = (i2c_type*) pvParameters;
-
-		masterXfer.slaveAddress = f_time->slaveAddress;
-	    masterXfer.direction = kI2C_Write;
-	    masterXfer.subaddress = f_time->subaddress;
-	    masterXfer.subaddressSize = 1;
-	    masterXfer.data = f_time->data_buffer;
-	    masterXfer.dataSize =  f_time->data_size;
-	    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		I2C_MasterTransferNonBlocking(I2C0,  f_time->handle, &masterXfer);
-		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-		xSemaphoreGive(mutex_transfer_i2c);
-		vTaskDelete(NULL);
-}
-
-}
-/**
- *
- */
-void read_date(void * pvParameters)
-{
-		static i2c_master_transfer_t masterXfer;
-		i2c_type * r_date = (i2c_type *) pvParameters;
-
-		typedef struct
-		{
-			uint8_t u_dias : 2;
-			uint8_t d_dias : 4;
-			uint8_t años   : 2;
-			uint8_t u_meses : 4;
-			uint8_t d_meses : 1;
-
-		} separacion;
-
-		separacion fecha;
-		//////////////////////////////////////////LEER FECHA LISTO//////////////////////////////////////////////////////////////////////
-		masterXfer.slaveAddress = r_date->slaveAddress;
-	    masterXfer.direction = kI2C_Read;
-	    masterXfer.subaddress = r_date->subaddress;
-	    masterXfer.subaddressSize = 1;
-	    masterXfer.data = r_date->data_buffer;
-	    masterXfer.dataSize = r_date->data_size;
-	    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-		for(;;)
-		{
-			xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		    I2C_MasterTransferNonBlocking(I2C0, (r_date->handle), &masterXfer);
-		    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-		    xSemaphoreGive(mutex_transfer_i2c);
-
-		    PRINTF("\r%x / %x / %x", r_date->data_buffer[0],r_date->data_buffer[2], (r_date->data_buffer[1]+2));
-		}
-}
-
-
-
-void write_date(void * pvParameters)
-{
-	//////////////////////////////////////////ESCRIBIR MEMORIA//////////////////////////////////////////////////////////////////////
-static i2c_master_transfer_t masterXfer;
-	i2c_type * w_date = (i2c_type*) pvParameters;
-
-		masterXfer.slaveAddress = w_date->slaveAddress;
-	    masterXfer.direction = kI2C_Write;
-	    masterXfer.subaddress = w_date->subaddress;
-	    masterXfer.subaddressSize = 1;
-	    masterXfer.data = w_date->data_buffer;
-	    masterXfer.dataSize =  w_date->data_size;
-	    masterXfer.flags = kI2C_TransferDefaultFlag;
-
-
-	for(;;)
-	{
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		I2C_MasterTransferNonBlocking(I2C0,  w_date->handle, &masterXfer);
-		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-		xSemaphoreGive(mutex_transfer_i2c);
-		vTaskDelete(NULL);
-}
-
-}
+//void read_mem(void * pvParameters)
+//{
+//	static i2c_master_transfer_t masterXfer;
+//	i2c_type * r_mem = (i2c_type *) pvParameters;
+//
+//	//////////////////////////////////////////LEER MEMORIA LISTO//////////////////////////////////////////////////////////////////////
+//	masterXfer.slaveAddress = r_mem->slaveAddress;
+//    masterXfer.direction = kI2C_Read;
+//    masterXfer.subaddress = r_mem->subaddress;
+//    masterXfer.subaddressSize = 2;
+//    masterXfer.data = r_mem->data_buffer;
+//    masterXfer.dataSize = r_mem->data_size;
+//    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//	    I2C_MasterTransferNonBlocking(I2C0, r_mem->handle, &masterXfer);
+//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//	    xSemaphoreGive(mutex_transfer_i2c);
+//
+//	}
+//}
+//*/
+//void init_clk(void * pvParameters)
+//{
+//	//////////////////////////////////////////ESCRIBIR CLK DEFAULT LISTO//////////////////////////////////////////////////////////////////////
+//	static i2c_master_transfer_t masterXfer;
+//	i2c_type * w_clk = (i2c_type*) pvParameters;
+//
+//	masterXfer.slaveAddress = w_clk->slaveAddress;
+//	masterXfer.direction = kI2C_Write;
+//	masterXfer.subaddress = w_clk->subaddress;
+//	masterXfer.subaddressSize = 1;
+//	masterXfer.data = w_clk->data_buffer;
+//	masterXfer.dataSize = w_clk->data_size;
+//	masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//	    I2C_MasterTransferNonBlocking(I2C0, (w_clk->handle), &masterXfer);
+//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//	    xSemaphoreGive(mutex_transfer_i2c);
+//		vTaskDelete(NULL);
+//}
+//
+//}
+///**
+//void read_time(void * pvParameters)
+//{
+//	static i2c_master_transfer_t masterXfer;
+//	i2c_type * r_time = (i2c_type *) pvParameters;
+//
+//	//////////////////////////////////////////LEER TIEMPO LISTO//////////////////////////////////////////////////////////////////////
+//	masterXfer.slaveAddress = r_time->slaveAddress;
+//    masterXfer.direction = kI2C_Read;
+//    masterXfer.subaddress = r_time->subaddress;
+//    masterXfer.subaddressSize = 1;
+//    masterXfer.data = r_time->data_buffer;
+//    masterXfer.dataSize = r_time->data_size;
+//    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//	    I2C_MasterTransferNonBlocking(I2C0, (r_time->handle), &masterXfer);
+//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//	    xSemaphoreGive(mutex_transfer_i2c);
+//	    PRINTF("\r%x : %x : %x ", r_time->data_buffer[2], r_time->data_buffer[1], r_time->data_buffer[0]);
+//
+//	}
+//}
+//
+//void write_time(void * pvParameters)
+//{
+//	//////////////////////////////////////////ESCRIBIR  medio listo//////////////////////////////////////////////////////////////////////
+//	static i2c_master_transfer_t masterXfer;
+//	i2c_type * w_time = (i2c_type*) pvParameters;
+//
+//		masterXfer.slaveAddress = w_time->slaveAddress;
+//	    masterXfer.direction = kI2C_Write;
+//	    masterXfer.subaddress = w_time->subaddress;
+//	    masterXfer.subaddressSize = 1;
+//	    masterXfer.data = w_time->data_buffer;
+//	    masterXfer.dataSize =  w_time->data_size;;
+//	    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//		I2C_MasterTransferNonBlocking(I2C0,  w_time->handle, &masterXfer);
+//		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//		xSemaphoreGive(mutex_transfer_i2c);
+//		vTaskDelete(NULL);
+//}
+//
+//}
+//
+//void format_of_hour(void * pvParameters)
+//{
+//	//////////////////////////////////////////ESCRIBIR escribir formato, medio liisto //////////////////////////////////////////////////////////////////////
+//	static i2c_master_transfer_t masterXfer;
+//	i2c_type * f_time = (i2c_type*) pvParameters;
+//
+//		masterXfer.slaveAddress = f_time->slaveAddress;
+//	    masterXfer.direction = kI2C_Write;
+//	    masterXfer.subaddress = f_time->subaddress;
+//	    masterXfer.subaddressSize = 1;
+//	    masterXfer.data = f_time->data_buffer;
+//	    masterXfer.dataSize =  f_time->data_size;
+//	    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//		I2C_MasterTransferNonBlocking(I2C0,  f_time->handle, &masterXfer);
+//		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//		xSemaphoreGive(mutex_transfer_i2c);
+//		vTaskDelete(NULL);
+//}
+//
+//}
+///**
+// *
+// */
+//void read_date(void * pvParameters)
+//{
+//		static i2c_master_transfer_t masterXfer;
+//		i2c_type * r_date = (i2c_type *) pvParameters;
+//
+//		typedef struct
+//		{
+//			uint8_t u_dias : 2;
+//			uint8_t d_dias : 4;
+//			uint8_t anos   : 2;
+//			uint8_t u_meses : 4;
+//			uint8_t d_meses : 1;
+//
+//		} separacion;
+//
+//		separacion fecha;
+//		//////////////////////////////////////////LEER FECHA LISTO//////////////////////////////////////////////////////////////////////
+//		masterXfer.slaveAddress = r_date->slaveAddress;
+//	    masterXfer.direction = kI2C_Read;
+//	    masterXfer.subaddress = r_date->subaddress;
+//	    masterXfer.subaddressSize = 1;
+//	    masterXfer.data = r_date->data_buffer;
+//	    masterXfer.dataSize = r_date->data_size;
+//	    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//		for(;;)
+//		{
+//			xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//		    I2C_MasterTransferNonBlocking(I2C0, (r_date->handle), &masterXfer);
+//		    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//		    xSemaphoreGive(mutex_transfer_i2c);
+//
+//		    PRINTF("\r%x / %x / %x", r_date->data_buffer[0],r_date->data_buffer[2], (r_date->data_buffer[1]+2));
+//		}
+//}
+//
+//
+//
+//void write_date(void * pvParameters)
+//{
+//	//////////////////////////////////////////ESCRIBIR MEMORIA//////////////////////////////////////////////////////////////////////
+//static i2c_master_transfer_t masterXfer;
+//	i2c_type * w_date = (i2c_type*) pvParameters;
+//
+//		masterXfer.slaveAddress = w_date->slaveAddress;
+//	    masterXfer.direction = kI2C_Write;
+//	    masterXfer.subaddress = w_date->subaddress;
+//	    masterXfer.subaddressSize = 1;
+//	    masterXfer.data = w_date->data_buffer;
+//	    masterXfer.dataSize =  w_date->data_size;
+//	    masterXfer.flags = kI2C_TransferDefaultFlag;
+//
+//
+//	for(;;)
+//	{
+//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+//		I2C_MasterTransferNonBlocking(I2C0,  w_date->handle, &masterXfer);
+//		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+//		xSemaphoreGive(mutex_transfer_i2c);
+//		vTaskDelete(NULL);
+//}
+//
+//}
 
 
 
@@ -334,34 +339,34 @@ static i2c_master_transfer_t masterXfer;
 /*
  * @brief   Application entry point.
  */
-int main(void)
-{
+//int main(void)
+//{
+//
+//
+//
+//    /* Init board hardware. */
+//    BOARD_InitBootPins();
+//    BOARD_InitBootClocks();
+//    BOARD_InitBootPeripherals();
+//    /* Init FSL debug console. */
+//    BOARD_InitDebugConsole();
+//
+//    i2c_init_peripherals();
+//
+//
+//	vTaskStartScheduler();
+//
+//
+//
+//    /* Enter an infinite loop, just incrementing a counter. */
+//	for(;;)
+//	{
+//
+//	}
+//    return 0;
+//}
 
-
-
-    /* Init board hardware. */
-    BOARD_InitBootPins();
-    BOARD_InitBootClocks();
-    BOARD_InitBootPeripherals();
-    /* Init FSL debug console. */
-    BOARD_InitDebugConsole();
-
-    i2c_init_peripherals();
-
-
-	vTaskStartScheduler();
-
-
-
-    /* Enter an infinite loop, just incrementing a counter. */
-	for(;;)
-	{
-
-	}
-    return 0;
-}
-
-void i2c_init_peripherals()
+void i2c_init_peripherals(void)
 {
     static i2c_master_config_t masterConfig;
 	static i2c_master_handle_t g_m_handle;
@@ -463,21 +468,21 @@ void i2c_init_peripherals()
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle, i2c_master_callback,
 			NULL);
 
-	//xTaskCreate(write_mem, "write_mem", 150, (void *) &w_mem, 4, NULL);
+	xTaskCreate(write_mem, "write_mem", 150, (void *) &w_mem, 4, NULL);
 
 	//xTaskCreate(read_mem,  "read_mem" , 150, (void *) &r_mem, 3, NULL);
 
-	xTaskCreate(init_clk, "init_clk", 250, (void *) &w_clk, 4, NULL);
+	//xTaskCreate(init_clk, "init_clk", 250, (void *) &w_clk, 4, NULL);
 
 	//xTaskCreate(read_time,  "read_time" , 250, (void *) &r_time, 3, NULL);
 
-	xTaskCreate(read_date,  "read_date" , 250, (void *) &r_date, 4, NULL);
+	//xTaskCreate(read_date,  "read_date" , 250, (void *) &r_date, 4, NULL);
 
 	//xTaskCreate(write_time, "write_time", 250, (void *) &w_time, 4, NULL);
 
 	//xTaskCreate(format_of_hour, "format_of_hour", 150, (void *) &w_mem, 4, NULL);
 
-	xTaskCreate(write_date, "write_date", 250, (void *) &w_date, 4, NULL);
+	//xTaskCreate(write_date, "write_date", 250, (void *) &w_date, 4, NULL);
 
 
 
@@ -513,3 +518,4 @@ void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t s
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
+

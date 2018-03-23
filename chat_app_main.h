@@ -1,5 +1,13 @@
-#ifndef TERMINAL_H_
-#define TERMINAL_H_
+/*
+ * chat_app_main.h
+ *
+ *  Created on: Mar 23, 2018
+ *      Author: Usuario
+ */
+
+#ifndef CHAT_APP_MAIN_H_
+#define CHAT_APP_MAIN_H_
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
@@ -8,6 +16,6 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-void terminal_init(void);
+EventGroupHandle_t get_menu_event(void);
 
-#endif /* TERMINAL_H_ */
+#endif /* CHAT_APP_MAIN_H_ */
