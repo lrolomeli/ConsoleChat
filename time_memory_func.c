@@ -32,7 +32,6 @@
  * @file    imu_read.c
  * @brief   Application entry point.
  */
-#include <stdio.h>
 #include "board.h"
 #include "peripherals.h"
 #include "pin_mux.h"
@@ -42,11 +41,12 @@
 #include "fsl_i2c.h"
 #include "fsl_gpio.h"
 #include "fsl_port.h"
-#include "freeRTOS.h"
+#include "time_memory_func.h"
+#include "chat_app_main.h"
+#include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
-#include "time_memory_func.h"
-#include "terminal.h"
+
 
 typedef struct
 {
@@ -71,7 +71,6 @@ typedef struct
 
 } i2c_timeClock_type;
 
-
 typedef struct
 {
 	uint8_t slaveAddress;
@@ -82,6 +81,9 @@ typedef struct
 
 } i2c_type;
 
+#define RTC_SLAVE_ADDRESS 0x51
+#define RTC_CONTROL_REGISTER 0x00
+#define ONE_BYTE_SIZE 1
 
 #define MASK_U_MINUTES             (0X0FU)
 #define MASK_D_MINUTES             (0XF0U)
@@ -133,7 +135,6 @@ void write_mem(void * pvParameters)
 		I2C_MasterTransferNonBlocking(I2C0, w_mem->handle, &masterXfer);
 		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
 		xSemaphoreGive(mutex_transfer_i2c);
-		vTaskDelete(NULL);
 	}
 
 }
@@ -162,31 +163,27 @@ void write_mem(void * pvParameters)
 //	}
 //}
 //*/
-//void init_clk(void * pvParameters)
-//{
-//	//////////////////////////////////////////ESCRIBIR CLK DEFAULT LISTO//////////////////////////////////////////////////////////////////////
-//	static i2c_master_transfer_t masterXfer;
-//	i2c_type * w_clk = (i2c_type*) pvParameters;
-//
-//	masterXfer.slaveAddress = w_clk->slaveAddress;
-//	masterXfer.direction = kI2C_Write;
-//	masterXfer.subaddress = w_clk->subaddress;
-//	masterXfer.subaddressSize = 1;
-//	masterXfer.data = w_clk->data_buffer;
-//	masterXfer.dataSize = w_clk->data_size;
-//	masterXfer.flags = kI2C_TransferDefaultFlag;
-//
-//
-//	for(;;)
-//	{
-//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-//	    I2C_MasterTransferNonBlocking(I2C0, (w_clk->handle), &masterXfer);
-//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-//	    xSemaphoreGive(mutex_transfer_i2c);
-//		vTaskDelete(NULL);
-//}
-//
-//}
+void init_clk(void * pvParameters)
+{
+	static i2c_master_transfer_t masterXfer;
+	static const uint8_t buffer = 0x00;
+	i2c_master_handle_t * handle = (i2c_master_handle_t *) pvParameters;
+
+	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
+	masterXfer.direction = kI2C_Write;
+	masterXfer.subaddress = RTC_CONTROL_REGISTER;
+	masterXfer.subaddressSize = ONE_BYTE_SIZE;
+	masterXfer.data = &buffer;
+	masterXfer.dataSize = ONE_BYTE_SIZE;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	I2C_MasterTransferNonBlocking(I2C0, (handle), &masterXfer);
+	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	xSemaphoreGive(mutex_transfer_i2c);
+	vTaskDelete(NULL);
+
+}
 ///**
 //void read_time(void * pvParameters)
 //{
@@ -370,15 +367,17 @@ void i2c_init_peripherals(void)
 {
     static i2c_master_config_t masterConfig;
 	static i2c_master_handle_t g_m_handle;
-	static i2c_type r_date;
-	static i2c_type r_mem;
-	static i2c_type r_time;
-	static i2c_type w_clk;
+
 	static i2c_type w_mem;
+/**
+	static i2c_type r_mem;
 	static i2c_type w_time;
 	static i2c_type w_date;
 	static i2c_type f_time;
-/**
+	static i2c_type r_time;
+	static i2c_type w_clk;
+	static i2c_type r_date;
+
     date.d_day = 1;
     date.u_day = 3;
     date.d_month = 1;
@@ -396,25 +395,6 @@ void i2c_init_peripherals(void)
     */
 
 
-
-    ///////////////////////////////parametros para leer en memoria////////////////////////////////////////////////////////
-    r_mem.slaveAddress = 0x50;
-    r_mem.subaddress = 0x00;
-    r_mem.data_size = 2;
-    r_mem.handle = &g_m_handle;
-
-    ///////////////////////////////parametros para leer el tiempo en el relog////////////////////////////////////////////////////////
-    r_time.slaveAddress = 0x51;
-    r_time.subaddress = 0x02;			 //variable para la direccion a escribir
-    r_time.data_size = 3;				 //variable de cantidad de datos a escribir
-    r_time.handle = &g_m_handle;
-
-    ///////////////////////////////parametros para leer la fecha en el reloj////////////////////////////////////////////////////////
-    r_date.slaveAddress = 0x51;
-    r_date.subaddress = 0x05;			 //variable para la direccion a escribir
-    r_date.data_size = 2;				 //variable de cantidad de datos a escribir
-    r_date.handle = &g_m_handle;
-
     ///////////////////////////////parametros para escribir en memoria////////////////////////////////////////////////////////
     w_mem.slaveAddress = 0x50;
     w_mem.subaddress = 0x00;			 //variable para la direccion a escribir
@@ -423,34 +403,46 @@ void i2c_init_peripherals(void)
     w_mem.data_buffer[1] = 'a';          //son el contenido del arreglo en el buffer
     w_mem.handle = &g_m_handle;
 
-    ///////////////////////////////parametros para escribir en clock, por default ////////////////////////////////////////////////////////
-    w_clk.slaveAddress = 0x51;
-    w_clk.subaddress = 0x00;			 //variable para la direccion a escribir
-    w_clk.data_size = 1;				 //variable de cantidad de datos a escribir
-    w_clk.data_buffer[0] = 0x00;			 //son el contenido del arreglo en el buffer
-    w_clk.handle = &g_m_handle;
 
-    ///////////////////////////////parametros para establecer hora ////////////////////////////////////////////////////////
-    w_time.slaveAddress = 0x51;
-    w_time.subaddress = 0x02;			 //variable para la direccion a escribir
-    w_time.data_size = 3;				 //variable de cantidad de datos a escribir
-    w_time.data_buffer[0] = 0b01011001;			 //son el contenido del arreglo en el buffer
-    w_time.data_buffer[1] = 0b01011001;
-    w_time.data_buffer[2] = 0b01011001;
-    w_time.handle = &g_m_handle;
-
-    f_time.slaveAddress = 0x51;
-    f_time.subaddress = 0x04;			 //variable para la direccion a escribir
-    f_time.data_size = 1;				 //variable de cantidad de datos a escribir
-    f_time.data_buffer[0] = 0b11000011;			 //son el contenido del arreglo en el buffer
-    f_time.handle = &g_m_handle;
-
-    w_date.slaveAddress = 0x51;
-    w_date.subaddress = 0x05;			 //variable para la direccion a escribir
-    w_date.data_size = 2;				 //variable de cantidad de datos a escribir
-    w_date.data_buffer[0] = 0b00010001;			 //son el contenido del arreglo en el buffer
-    w_date.data_buffer[1] = 0b00010001;
-    w_date.handle = &g_m_handle;
+//    ///////////////////////////////parametros para leer en memoria////////////////////////////////////////////////////////
+//    r_mem.slaveAddress = 0x50;
+//    r_mem.subaddress = 0x00;
+//    r_mem.data_size = 2;
+//    r_mem.handle = &g_m_handle;
+//
+//    ///////////////////////////////parametros para leer el tiempo en el reloj////////////////////////////////////////////////////////
+//    r_time.slaveAddress = 0x51;
+//    r_time.subaddress = 0x02;			 //variable para la direccion a escribir
+//    r_time.data_size = 3;				 //variable de cantidad de datos a escribir
+//    r_time.handle = &g_m_handle;
+//
+//    ///////////////////////////////parametros para leer la fecha en el reloj////////////////////////////////////////////////////////
+//    r_date.slaveAddress = 0x51;
+//    r_date.subaddress = 0x05;			 //variable para la direccion a escribir
+//    r_date.data_size = 2;				 //variable de cantidad de datos a escribir
+//    r_date.handle = &g_m_handle;
+//
+//    ///////////////////////////////parametros para establecer hora ////////////////////////////////////////////////////////
+//    w_time.slaveAddress = 0x51;
+//    w_time.subaddress = 0x02;			 //variable para la direccion a escribir
+//    w_time.data_size = 3;				 //variable de cantidad de datos a escribir
+//    w_time.data_buffer[0] = 0b01011001;			 //son el contenido del arreglo en el buffer
+//    w_time.data_buffer[1] = 0b01011001;
+//    w_time.data_buffer[2] = 0b01011001;
+//    w_time.handle = &g_m_handle;
+//
+//    f_time.slaveAddress = 0x51;
+//    f_time.subaddress = 0x04;			 //variable para la direccion a escribir
+//    f_time.data_size = 1;				 //variable de cantidad de datos a escribir
+//    f_time.data_buffer[0] = 0b11000011;			 //son el contenido del arreglo en el buffer
+//    f_time.handle = &g_m_handle;
+//
+//    w_date.slaveAddress = 0x51;
+//    w_date.subaddress = 0x05;			 //variable para la direccion a escribir
+//    w_date.data_size = 2;				 //variable de cantidad de datos a escribir
+//    w_date.data_buffer[0] = 0b00010001;			 //son el contenido del arreglo en el buffer
+//    w_date.data_buffer[1] = 0b00010001;
+//    w_date.handle = &g_m_handle;
 
 	CLOCK_EnableClock(kCLOCK_PortB);
 	CLOCK_EnableClock(kCLOCK_I2c0);
@@ -468,11 +460,13 @@ void i2c_init_peripherals(void)
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle, i2c_master_callback,
 			NULL);
 
-	xTaskCreate(write_mem, "write_mem", 150, (void *) &w_mem, 4, NULL);
+	xTaskCreate(write_mem, "write_mem", configMINIMAL_STACK_SIZE,
+			(void *) &w_mem, configMAX_PRIORITIES - 1, NULL);
 
 	//xTaskCreate(read_mem,  "read_mem" , 150, (void *) &r_mem, 3, NULL);
 
-	//xTaskCreate(init_clk, "init_clk", 250, (void *) &w_clk, 4, NULL);
+	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) &g_m_handle,
+			configMAX_PRIORITIES, NULL);
 
 	//xTaskCreate(read_time,  "read_time" , 250, (void *) &r_time, 3, NULL);
 
@@ -484,13 +478,11 @@ void i2c_init_peripherals(void)
 
 	//xTaskCreate(write_date, "write_date", 250, (void *) &w_date, 4, NULL);
 
-
-
-	transfer_i2c_semaphore = xSemaphoreCreateBinary();
-	mutex_transfer_i2c = xSemaphoreCreateMutex();
     NVIC_EnableIRQ(I2C0_IRQn);
     NVIC_SetPriority(I2C0_IRQn, 5);
 
+	transfer_i2c_semaphore = xSemaphoreCreateBinary();
+	mutex_transfer_i2c = xSemaphoreCreateMutex();
 }
 /**void digiToAscii(uint8_t var)
 {

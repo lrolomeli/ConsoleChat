@@ -22,19 +22,16 @@ void nokia_lcd_init_task(void * pvParameters)
 {
     static uint8_t first_line[] = "Welcome to";
     static uint8_t second_line[] = "Practica 1";
+
     GPIO_ClearPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
     vTaskDelay(100);/**delay of 100ms for properly reset*/
     GPIO_SetPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
 
     LCDNokia_init();
 
-
-    for(;;)
-    {
-        printline(Normal_print, first_line, first_row);
-        printline(Inverse_print, second_line, second_row);
-        vTaskDelete(NULL);
-    }
+	printline(Normal_print, first_line, first_row);
+	printline(Inverse_print, second_line, second_row);
+	vTaskDelete(NULL);
 
 }
 

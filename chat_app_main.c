@@ -13,18 +13,6 @@
 EventGroupHandle_t menu_events_g;
 
 
-
-void terminal_menu_task(void * pvParameters)
-{
-
-
-	for(;;)
-	{
-
-	}
-}
-
-
 int main(void)
 {
 
@@ -35,13 +23,9 @@ int main(void)
     /* Init FSL debug console. */
     BOARD_InitDebugConsole();
 
-    terminal_init();
-    //lcd_spi_pins_init();
+    lcd_spi_pins_init();
     i2c_init_peripherals();
-    //create task
-//	xTaskCreate(terminal_menu_task, "menu_terminal", 110, (void *) 0,
-//	configMAX_PRIORITIES, NULL);
-
+    terminal_init();
 
     menu_events_g = xEventGroupCreate();
     vTaskStartScheduler();

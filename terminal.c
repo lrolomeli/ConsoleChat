@@ -40,10 +40,10 @@
 #include "pin_mux.h"
 #include "clock_config.h"
 #include "chat_app_main.h"
-//#include "FreeRTOS.h"
-//#include "task.h"
-//#include "semphr.h"
-//#include "event_groups.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "event_groups.h"
 /*******************************************************************************
  * Structures
  ******************************************************************************/
@@ -223,9 +223,6 @@ void terminal_init(void)
 	static uart_parameters_type cpu;
 	static uart_parameters_type bluetooth;
 
-	//static uart_handle_t g_uartHandle_ter;
-	//static uart_handle_t g_uartHandle_bt;
-
 	static uart_config_t config_ter;
     static uart_config_t config_bt;
 
@@ -274,6 +271,7 @@ void terminal_init(void)
 	 ******************************************************************************/
     UART_Init(DEMO_UART, &config_ter, DEMO_UART_CLK_FREQ);
 	UART_Init(UART1, &config_bt, CLOCK_GetFreq(UART1_CLK_SRC));
+
 
 	UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback_ter,
 			NULL);
