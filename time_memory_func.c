@@ -128,8 +128,10 @@ void write_mem(void * pvParameters)
 
 	for(;;)
 	{
+		/*Whenever we need to send the menu to the terminal
+		 * We will wait for this event rather BT or CPU*/
 		xEventGroupWaitBits(get_menu_event(), 1 << 1, pdTRUE, pdTRUE,
-				portMAX_DELAY); //la tarea recibe el evento de escribir en memoria
+				portMAX_DELAY);
 
 		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
 		I2C_MasterTransferNonBlocking(I2C0, w_mem->handle, &masterXfer);
@@ -166,7 +168,7 @@ void write_mem(void * pvParameters)
 void init_clk(void * pvParameters)
 {
 	static i2c_master_transfer_t masterXfer;
-	static const uint8_t buffer = 0x00;
+	static uint8_t buffer = 0x00;
 	i2c_master_handle_t * handle = (i2c_master_handle_t *) pvParameters;
 
 	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
