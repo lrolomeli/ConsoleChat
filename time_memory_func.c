@@ -43,9 +43,9 @@
 #include "fsl_port.h"
 #include "time_memory_func.h"
 #include "chat_app_main.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
+
+
+
 
 
 typedef struct
@@ -103,13 +103,25 @@ typedef struct
 #define SLADE7 					   (A<<7)
 
 //void separation_Of_Units(uint8_t var);
-void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData);
+
 void i2c_init_peripherals();
 
 
 SemaphoreHandle_t transfer_i2c_semaphore;
 SemaphoreHandle_t mutex_transfer_i2c;
+EventGroupHandle_t i2c_events_g;
 
+void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData)
+{
+    userData = userData;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    if (status == kStatus_Success)
+    {
+    	xSemaphoreGiveFromISR(transfer_i2c_semaphore, &xHigherPriorityTaskWoken);
+    }
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
 
 void write_mem(void * pvParameters)
 {
@@ -130,13 +142,15 @@ void write_mem(void * pvParameters)
 	{
 		/*Whenever we need to send the menu to the terminal
 		 * We will wait for this event rather BT or CPU*/
-		xEventGroupWaitBits(get_menu_event(), 1 << 1, pdTRUE, pdTRUE,
+		xEventGroupWaitBits(i2c_events_g, MEMORY_READ_EVENT, pdTRUE, pdTRUE,
 				portMAX_DELAY);
 
 		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
 		I2C_MasterTransferNonBlocking(I2C0, w_mem->handle, &masterXfer);
 		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
 		xSemaphoreGive(mutex_transfer_i2c);
+
+		xEventGroupSetBits(i2c_events_g, MEMORY_READ_DONE);
 	}
 
 }
@@ -484,7 +498,9 @@ void i2c_init_peripherals(void)
     NVIC_SetPriority(I2C0_IRQn, 5);
 
 	transfer_i2c_semaphore = xSemaphoreCreateBinary();
+	i2c_events_g = xEventGroupCreate();
 	mutex_transfer_i2c = xSemaphoreCreateMutex();
+
 }
 /**void digiToAscii(uint8_t var)
 {
@@ -501,15 +517,10 @@ void i2c_init_peripherals(void)
 	}
 }
 */
-void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData)
+
+EventGroupHandle_t get_i2c_event(void)
 {
-    userData = userData;
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    if (status == kStatus_Success)
-    {
-    	xSemaphoreGiveFromISR(transfer_i2c_semaphore, &xHigherPriorityTaskWoken);
-    }
-    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+	return i2c_events_g;
+
 }
-

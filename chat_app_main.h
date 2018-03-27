@@ -8,14 +8,6 @@
 #ifndef CHAT_APP_MAIN_H_
 #define CHAT_APP_MAIN_H_
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "event_groups.h"
 
-/*******************************************************************************
- * Prototypes
- ******************************************************************************/
-EventGroupHandle_t get_menu_event(void);
 
 #endif /* CHAT_APP_MAIN_H_ */

@@ -9,8 +9,7 @@
 #include "lcd_func.h"
 #include "time_memory_func.h"
 #include "chat_app_main.h"
-
-EventGroupHandle_t menu_events_g;
+#include "menu.h"
 
 
 int main(void)
@@ -26,8 +25,8 @@ int main(void)
     lcd_spi_pins_init();
     i2c_init_peripherals();
     terminal_init();
+    init_menu();
 
-    menu_events_g = xEventGroupCreate();
     vTaskStartScheduler();
 
     for(;;)
@@ -37,9 +36,4 @@ int main(void)
 
 }
 
-EventGroupHandle_t get_menu_event(void)
-{
 
-	return menu_events_g;
-
-}
