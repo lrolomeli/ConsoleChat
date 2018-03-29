@@ -5,34 +5,35 @@
 #include "pin_mux.h"
 #include "MK64F12.h"
 #include "fsl_debug_console.h"
-#include "terminal.h"
+#include "serialterminal.h"
+#include "bluetoothterminal.h"
 #include "lcd_func.h"
 #include "time_memory_func.h"
 #include "chat_app_main.h"
 #include "menu.h"
 
-
 int main(void)
 {
 
-    /* Init board hardware. */
-    BOARD_InitBootPins();
-    BOARD_InitBootClocks();
-    BOARD_InitBootPeripherals();
-    /* Init FSL debug console. */
-    BOARD_InitDebugConsole();
+	/* Init board hardware. */
+	BOARD_InitBootPins();
+	BOARD_InitBootClocks();
+	BOARD_InitBootPeripherals();
+	/* Init FSL debug console. */
+	BOARD_InitDebugConsole();
 
-    lcd_spi_pins_init();
-    i2c_init_peripherals();
-    terminal_init();
-    init_menu();
+	//lcd_spi_pins_init();
+	//i2c_init_peripherals();
+	bt_terminal_init();
+	serial_terminal_init();
+	init_menu();
 
-    vTaskStartScheduler();
+	vTaskStartScheduler();
 
-    for(;;)
-    {
+	for (;;)
+	{
 
-    }
+	}
 
 }
 

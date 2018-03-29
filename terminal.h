@@ -1,28 +1,46 @@
 #ifndef TERMINAL_H_
 #define TERMINAL_H_
+#include "MK64F12.h"
+#include "fsl_uart.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 #include "event_groups.h"
+#include "queue.h"
+
+/*******************************************************************************
+ * Structures
+ ******************************************************************************/
+typedef enum {
+
+	FALSE = 0, TRUE
+
+} boolean_type;
 
 typedef struct {
 
-	uint8_t message[20];
-	uint8_t message_size;
+	UART_Type * xuart;
+	uart_handle_t uart_handle;
+	EventGroupHandle_t event_group;
+	QueueHandle_t queue;
 
-} echo_data_type;
+} terminal_type;
 
-
-#define READ_FROM_KEYBOARD (1 << 9)
-#define READ_MENU_FROM_KEYBOARD (1 << 11)
-#define READ_MENU_EVENT (1 << 12)
-#define DEPLOY_MENU (1 << 13)
-#define DEPLOY_MENU_DONE (1 << 14)
 /*******************************************************************************
- * Prototypes
+ * Definitions
  ******************************************************************************/
-void terminal_init(void);
-EventGroupHandle_t get_uart_event(void);
-QueueHandle_t get_uart_mailbox(void);
-void storing_phrase(uint8_t phrase_length, uint8_t * phrase);
+#define EVENT_RX 				(1 << 0)
+#define EVENT_TX 				(1 << 1)
+#define DEPLOY_MENU 			(1 << 2)
+#define DEPLOY_MENU_SET			(1 << 3)
+#define READ_FROM_KEYBOARD		(1 << 4)
+#define KEEP_READING			(1 << 5)
+
+/*******************************************************************************
+ * Tasks
+ ******************************************************************************/
+void send_menu_task(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+uint8_t read_menu_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+uint8_t validate_number(uint8_t keyboard_data);
+
 #endif /* TERMINAL_H_ */

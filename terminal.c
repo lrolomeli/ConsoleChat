@@ -31,10 +31,11 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include "bluetoothterminal.h"
+#include "serialterminal.h"
 #include "terminal.h"
 #include "board.h"
-#include "fsl_uart.h"
+
 #include "fsl_port.h"
 #include "fsl_gpio.h"
 #include "fsl_debug_console.h"
@@ -46,40 +47,9 @@
  * Structures
  ******************************************************************************/
 
-typedef struct {
-
-	UART_Type * xuart;
-	uart_handle_t uart_handle;
-	uint8_t rx_event;
-	uint8_t tx_event;
-
-} uart_parameters_type;
-
-
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-/* UART instance and clock */
-#define DEMO_UART UART0
-#define DEMO_UART_CLKSRC UART0_CLK_SRC
-#define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART0_CLK_SRC)
-#define ECHO_BUFFER_LENGTH 1
-
-#define EVENT_RX (1 << 0)
-#define EVENT_TX (1 << 1)
-
-#define EVENT_BT_RX (1 << 2)
-#define EVENT_BT_TX (1 << 3)
-
-#define EVENT_ECHO (1 << 4)
-#define EVENT_ECHO_BLUETOOTH (1 << 5)
-
-
-
-#define EVENT_MENU_CPU (1 << 6)
-#define EVENT_MENU_BT (1 << 7)
-
-#define READ_EVENT (1 << 8)
 
 /*******************************************************************************
  * Prototypes
@@ -88,339 +58,147 @@ typedef struct {
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-QueueHandle_t mailbox;
-
 static uint8_t terminal_menu[] =
-        "\r\n(1) Escribir en Memoria\r\n(1) Escribir en Memoria"
-        "\r\n(1) Escribir en Memoria\r\n(1) Escribir en Memoria"
-        "\r\n(1) Escribir en Memoria\r\n(1) Escribir en Memoria"
-        "\r\n(1) Escribir en Memoria\r\n(1) Escribir en Memoria\r\n";
-static uint8_t error_message[] =
-        "\r\nWrong Selection, try again\r\n";
-EventGroupHandle_t uart_events_g;
-
-/*******************************************************************************
- * CALLBACKS
- ******************************************************************************/
-
-/* UART terminal user callback */
-void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
-{
-    userData = userData;
-
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    if (kStatus_UART_TxIdle == status)
-    {
-    	//event group set bits from isr for tx
-    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_TX, &xHigherPriorityTaskWoken);
-    }
-
-    if (kStatus_UART_RxIdle == status)
-    {
-    	//event group set bits from isr for rx
-    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_RX, &xHigherPriorityTaskWoken);
-    }
-    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
-}
-
-
-/* UART bluetooth user callback */
-void UART_UserCallback_bt(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
-{
-    userData = userData;
-
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    if (kStatus_UART_TxIdle == status)
-    {
-    	//event group set bits from isr for tx
-    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_BT_TX, &xHigherPriorityTaskWoken);
-    }
-
-    if (kStatus_UART_RxIdle == status)
-    {
-    	//event group set bits from isr for rx
-    	xEventGroupSetBitsFromISR(uart_events_g, EVENT_BT_RX, &xHigherPriorityTaskWoken);
-    }
-    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
-}
-
-
+				"\r\n(1) Leer Memoria I2C\r\n(2) Escribir Memoria I2C"
+		        "\r\n(3) Establecer Hora\r\n(4) Establecer Fecha"
+		        "\r\n(5) Formato de Hora\r\n(6) Leer Hora"
+		        "\r\n(7) Leer Fecha\r\n(8) Comunicacion con terminal 2"
+		        "\r\n(9) Eco en LCD\r\n";
 /*******************************************************************************
  * TASKS CODE
  ******************************************************************************/
-
-void read_menu_from_keyboard(void * pvParameters)
-{
-	//va a estar encendiendo la tarea de transceiver
-	//siempre y cuando no se presione enter o escape
-	for(;;)
-	{
-	    xEventGroupWaitBits(uart_events_g, READ_MENU_FROM_KEYBOARD, pdTRUE, pdTRUE,
-	            portMAX_DELAY);
-		xEventGroupSetBits(uart_events_g, READ_MENU_EVENT);
-
-	}
-
-}
-
-
-
-void uart_transmitter_task(void * pvParameters)
+void send_menu_task(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group)
 {
 
 	static uart_transfer_t xfer;
-
-	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
 
 	/* Send message out. */
 	xfer.data = terminal_menu;
 	xfer.dataSize = sizeof(terminal_menu) - 1;
 
+	UART_TransferSendNonBlocking(xuart, uart_handle, &xfer);
 
-	for(;;)
-	{
-	    xEventGroupWaitBits(uart_events_g, DEPLOY_MENU, pdTRUE, pdTRUE,
-	            portMAX_DELAY);
-
-	    UART_TransferSendNonBlocking(uart_param->xuart,
-	            &(uart_param->uart_handle), &xfer);
-
-	    xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE,
-	            portMAX_DELAY);
-
-	    xEventGroupSetBits(uart_events_g, DEPLOY_MENU_DONE);
-
-
-	}
+	xEventGroupWaitBits(event_group, EVENT_TX, pdTRUE, pdTRUE,
+	portMAX_DELAY);
 
 }
 
+/*******************************************************************************
+ * TASKS CODE
+ ******************************************************************************/
 
-void uart_transceiver_task(void * pvParameters)
+
+/*******************************************************************************
+ * TASKS CODE
+ ******************************************************************************/
+uint8_t read_menu_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group)
 {
 	static uart_transfer_t sendXfer;
 	static uart_transfer_t receiveXfer;
 	static uint8_t g_txBuffer;
 	static uint8_t g_rxBuffer;
-	static uint8_t counter = 0;
-	static uint8_t msg;
-	uart_parameters_type * uart_param = (uart_parameters_type *) pvParameters;
+	static uint8_t menu;
 
     /* Start to echo. */
     sendXfer.data = &g_txBuffer;
-    sendXfer.dataSize = ECHO_BUFFER_LENGTH;
+    sendXfer.dataSize = 1;
     receiveXfer.data = &g_rxBuffer;
-    receiveXfer.dataSize = ECHO_BUFFER_LENGTH;
+    receiveXfer.dataSize = 1;
 
     /* When no receiving transfers are happening this task will be suspend and whoever. */
     for(;;)
     {
-    	xEventGroupWaitBits(uart_events_g, READ_MENU_EVENT, pdTRUE, pdTRUE, portMAX_DELAY);
-    	/* UART0 and UART1 are different peripherals
-    	 * in case we are using the same UART for both tasks
-    	 * we should protect it with a MUTEX*/
 
-        /* The first UART task which is called, prepares to receive but the buffer is not ready
-         * until an interrupt occurs. */
-    	UART_TransferReceiveNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &receiveXfer, NULL);
+		/* The first UART task which is called, prepares to receive but the buffer is not ready
+		 * until an interrupt occurs. */
+		UART_TransferReceiveNonBlocking(xuart,
+		        uart_handle, &receiveXfer, NULL);
 
-    	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
-    	 * it could be interrupted in the middle of setting values and other task may corrupt the
-    	 * receive buffer for this reason we use MUTEX to protect the UART. */
-    	xEventGroupWaitBits(uart_events_g, uart_param->rx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+		/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
+		 * it could be interrupted in the middle of setting values and other task may corrupt the
+		 * receive buffer for this reason we use MUTEX to protect the UART. */
+		xEventGroupWaitBits(event_group, EVENT_RX, pdTRUE, pdTRUE,
+		        portMAX_DELAY);
 
-    	if ('0' < g_rxBuffer && '9' >= g_rxBuffer && counter == 0)
-    	{
-        	/* Fills the transmission buffer. */
-        	g_txBuffer = g_rxBuffer;
-        	msg = g_txBuffer - '0';
-        	counter++;
-        	/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
-        	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &sendXfer);
+		/* Fills the transmission buffer. */
+		g_txBuffer = g_rxBuffer;
 
-        	/* In case another task want to send the MUTEX must be given before */
-        	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
+		menu = validate_number(g_txBuffer);
 
-        	xEventGroupSetBits(uart_events_g, READ_MENU_FROM_KEYBOARD);
-    	}
-    	else if ('\r' == g_rxBuffer)
+		if (menu)
 		{
-    		counter = 0;
-    		/*guarda y saca lo que se escribio*/
-    		xQueueSendToBack(mailbox, &msg, portMAX_DELAY);
+			/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
+			UART_TransferSendNonBlocking(xuart,
+			        uart_handle, &sendXfer);
 
-		}
-		else if ('\b' == g_rxBuffer)
-		{
-			/*reduce */
-			counter--;
-        	/* Fills the transmission buffer. */
-        	g_txBuffer = g_rxBuffer;
+			/* In case another task want to send the MUTEX must be given before */
+			xEventGroupWaitBits(event_group, EVENT_TX, pdTRUE,
+			        pdTRUE,
+			        portMAX_DELAY);
 
-        	/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */
-        	UART_TransferSendNonBlocking(uart_param->xuart, &(uart_param->uart_handle), &sendXfer);
+			return menu;
 
-        	/* In case another task want to send the MUTEX must be given before */
-        	xEventGroupWaitBits(uart_events_g, uart_param->tx_event, pdTRUE, pdTRUE, portMAX_DELAY);
-			xEventGroupSetBits(uart_events_g, READ_MENU_FROM_KEYBOARD);
-		}
-		else if ('\e' == g_rxBuffer)
-		{
-			counter = 0;
-		}
-
-		else
-		{
-			xEventGroupSetBits(uart_events_g, READ_MENU_FROM_KEYBOARD);
 		}
 
     }
 
 }
 
+uint8_t validate_number(uint8_t keyboard_data)
+{
+	if ('0' < keyboard_data && '9' >= keyboard_data)
+	{
+		return keyboard_data - '0';
+	}
 
+	else
+	{
+		return FALSE;
+	}
+}
+
+#if 0
+uint8_t validate_number(uint8_t keyboard_data)
+{
+	static uint8_t counter = 0;
+
+	if ('0' < keyboard_data && '9' >= keyboard_data && counter == 0)
+	{
+
+		menu = keyboard_data - '0';
+		counter++;
+
+		return menu;
+
+	}
+	else if ('\r' == keyboard_data)
+	{
+		counter = 0;
+
+		return menu;
+
+	}
+	else if ('\b' == keyboard_data)
+	{
+		/*reduce */
+		counter--;
+		return FALSE;
+	}
+	else if ('\e' == keyboard_data)
+	{
+		counter = 0;
+		return FALSE;
+	}
+
+	else
+	{
+		return FALSE;
+	}
+
+}
+#endif
 /*******************************************************************************
  * FUNCTIONS
  ******************************************************************************/
-void terminal_init(void)
-{
-	static uart_parameters_type cpu;
-	static uart_parameters_type bluetooth;
-
-	static uart_config_t config_ter;
-    static uart_config_t config_bt;
-
-	/*******************************************************************************
-	 * TASKS PARAMETERS
-	 ******************************************************************************/
-	cpu.rx_event = EVENT_RX;
-	cpu.tx_event = EVENT_TX;
-	cpu.xuart = UART0;
-
-	bluetooth.rx_event = EVENT_BT_RX;
-	bluetooth.tx_event = EVENT_BT_TX;
-	bluetooth.xuart = UART1;
-
-	/*******************************************************************************
-	 * GPIO UART CONFIGURATION
-	 ******************************************************************************/
-    CLOCK_EnableClock(kCLOCK_PortB);
-    CLOCK_EnableClock(kCLOCK_Uart0);
-
-    CLOCK_EnableClock(kCLOCK_PortC);
-    CLOCK_EnableClock(kCLOCK_Uart1);
-
-	PORT_SetPinMux(PORTB, 10, kPORT_MuxAlt3);
-    PORT_SetPinMux(PORTB, 11, kPORT_MuxAlt3);
-
-	PORT_SetPinMux(PORTC, 3, kPORT_MuxAlt3);
-    PORT_SetPinMux(PORTC, 4, kPORT_MuxAlt3);
-
-	/*******************************************************************************
-	 * UART BLUETOOTH OR TERMINAL CONFIGURATION
-	 ******************************************************************************/
-    UART_GetDefaultConfig(&config_ter);
-    config_ter.enableTx = true;
-    config_ter.enableRx = true;
-
-    UART_GetDefaultConfig(&config_bt);
-    config_bt.enableTx = true;
-    config_bt.enableRx = true;
-    config_bt.baudRate_Bps = 9600;
-
-	/*******************************************************************************
-	 * BLUETOOTH AND TERMINAL INITIALIZATION AND HANDLER CREATION
-	 ******************************************************************************/
-    UART_Init(DEMO_UART, &config_ter, DEMO_UART_CLK_FREQ);
-	UART_Init(UART1, &config_bt, CLOCK_GetFreq(UART1_CLK_SRC));
 
 
-	UART_TransferCreateHandle(DEMO_UART, &cpu.uart_handle, UART_UserCallback_ter,
-			NULL);
-	UART_TransferCreateHandle(UART1, &bluetooth.uart_handle, UART_UserCallback_bt,
-			NULL);
-
-	/*******************************************************************************
-	 * TASKS OF THE MODULE
-	 ******************************************************************************/
-	xTaskCreate(uart_transceiver_task, "echo_task", configMINIMAL_STACK_SIZE,
-			(void *) &cpu,
-			configMAX_PRIORITIES - 4, NULL);
-
-//	xTaskCreate(uart_transceiver_task, "echo_bluetooth", configMINIMAL_STACK_SIZE,
-//			(void *) &bluetooth,
-//			configMAX_PRIORITIES - 4, NULL);
-
-	xTaskCreate(uart_transmitter_task, "teraterm_menu", 110, (void *) &cpu,
-	configMAX_PRIORITIES, NULL);
-
-//	xTaskCreate(uart_transmitter_task, "bluetooth_menu", 110, (void *) &bluetooth,
-//	configMAX_PRIORITIES, NULL);
-
-	xTaskCreate(read_menu_from_keyboard, "reading_teraterm_keyboard",
-	        configMINIMAL_STACK_SIZE, (void *) &cpu,
-	        configMAX_PRIORITIES-4, NULL);
-
-//	xTaskCreate(read_menu_from_keyboard, "reading_teraterm_keyboard",
-//	        configMINIMAL_STACK_SIZE, (void *) &bluetooth,
-//	        configMAX_PRIORITIES-4, NULL);
-
-
-
-	/*******************************************************************************
-	 * INTERRUPT HABILITATION
-	 ******************************************************************************/
-    NVIC_EnableIRQ(UART0_RX_TX_IRQn);
-    NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
-
-    NVIC_EnableIRQ(UART1_RX_TX_IRQn);
-    NVIC_SetPriority(UART1_RX_TX_IRQn, 6);
-
-	/*******************************************************************************
-	 * EVENTS CREATION
-	 ******************************************************************************/
-	uart_events_g = xEventGroupCreate();
-
-	mailbox = xQueueCreate(1, sizeof(uint8_t));
-}
-
-
-
-#ifdef dynamic_alloc
-uint8_t* storing_phrase(uint8_t phrase_length, uint8_t * phrase)
-{
-	uint8_t str_index = 0;
-	uint8_t * string;
-
-	string = (uint8_t *)pvPortMalloc(phrase_length * sizeof(uint8_t));
-
-	if(string == NULL)
-	{
-		return;
-	}
-
-	for(str_index = 0; str_index < phrase_length; str_index++)
-	{
-		*(string + str_index) = *(phrase + str_index);
-	}
-
-	//vPortFree(string);
-	return string;
-}
-#endif
-
-EventGroupHandle_t get_uart_event(void)
-{
-
-	return uart_events_g;
-
-}
-
-QueueHandle_t get_uart_mailbox(void)
-{
-
-	return mailbox;
-
-}

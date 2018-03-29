@@ -8,23 +8,18 @@
 #include "menu.h"
 #include "time_memory_func.h"
 
-typedef enum {
-
-	FALSE = 0, TRUE
-
-} boolean_type;
-
 #define MAIN_MENU 0
 #define MAIN_MENU_EVENT (1 << 0)
 #define MENU_1_EVENT (1 << 1)
 #define MENU_2_EVENT (1 << 2)
 
-uint8_t validation_menu(uint8_t * variable, uint8_t length);
-uint8_t validation_address(uint8_t * variable, uint8_t length);
+//uint8_t validation_menu(uint8_t * variable, uint8_t length);
+//uint8_t validation_address(uint8_t * variable, uint8_t length);
 void in_charge(uint8_t menu);
 
-
 static EventGroupHandle_t menu_events_g;
+
+
 
 /*******************************************************************************
  * RUTINA MENU PRINCIPAL
@@ -35,29 +30,34 @@ static EventGroupHandle_t menu_events_g;
  ******************************************************************************/
 void main_menu_task(void * pvParameters)
 {
-
-	uint8_t msg;
+	terminal_type * uart_param = (terminal_type *) pvParameters;
+	static uint8_t menu;
 
 	for(;;)
 	{
 		/*******************************************************************************
 		 * SUSPEND UNTIL ITS CALLED WHILE WE'RE ON IN CHARGE FUNCTION
 		 ******************************************************************************/
-		xEventGroupWaitBits(menu_events_g, MAIN_MENU_EVENT, pdTRUE, pdTRUE, portMAX_DELAY);
+		//xEventGroupWaitBits(menu_events_g, MAIN_MENU_EVENT, pdTRUE, pdTRUE, portMAX_DELAY);
+
 		/*******************************************************************************
 		 * DEPLOY MENU
 		 ******************************************************************************/
-		xEventGroupSetBits(get_uart_event(), DEPLOY_MENU);
-		xEventGroupWaitBits(get_uart_event(), DEPLOY_MENU_DONE, pdTRUE, pdTRUE, portMAX_DELAY);
+		send_menu_task(uart_param->xuart, &(uart_param->uart_handle),uart_param->event_group);
 		/*******************************************************************************
 		 * READ MENU FROM KEYBOARD
 		 ******************************************************************************/
-		xEventGroupSetBits(get_uart_event(), READ_MENU_FROM_KEYBOARD);;
-		xQueueReceive(get_uart_mailbox(), &msg, portMAX_DELAY);
+		while (0 == menu)
+		{
+			menu = read_menu_from_keyboard(uart_param->xuart,
+					&(uart_param->uart_handle), uart_param->event_group);
+		}
 		/*******************************************************************************
 		 * CHECK AND VALID THE RECEIVED VALUE && SEND MENU TO IN CHARGE FUNCTION
 		 ******************************************************************************/
-		in_charge(msg);
+		in_charge(menu);
+		menu=0;
+		vTaskDelay(portMAX_DELAY);
 
 	}
 
@@ -144,17 +144,21 @@ void menu_task2(void * pvParameters)
 void start_task(void * pvParameters)
 {
 
-	xTaskCreate(main_menu_task, "select_menu",
-			configMINIMAL_STACK_SIZE, NULL,
-			configMAX_PRIORITIES-4, NULL);
+//	xTaskCreate(main_menu_task, "terminal_select_menu",
+//			configMINIMAL_STACK_SIZE, (void *) 0,
+//			configMAX_PRIORITIES-4, NULL);
+//
+//	xTaskCreate(main_menu_task, "bluetooth_select_menu",
+//			configMINIMAL_STACK_SIZE, (void *) 0,
+//			configMAX_PRIORITIES-4, NULL);
 
-	xTaskCreate(menu_task1, "read_eeprom",
-			configMINIMAL_STACK_SIZE, NULL,
-			configMAX_PRIORITIES-4, NULL);
-
-	xTaskCreate(menu_task2, "write_eeprom",
-			configMINIMAL_STACK_SIZE, NULL,
-			configMAX_PRIORITIES-4, NULL);
+//	xTaskCreate(menu_task1, "read_eeprom",
+//			configMINIMAL_STACK_SIZE, NULL,
+//			configMAX_PRIORITIES-4, NULL);
+//
+//	xTaskCreate(menu_task2, "write_eeprom",
+//			configMINIMAL_STACK_SIZE, NULL,
+//			configMAX_PRIORITIES-4, NULL);
 
 	/*******************************************************************************
 	 * EVENTS CREATION
@@ -174,7 +178,7 @@ void init_menu(void)
 
 	xTaskCreate(start_task, "create_menus_task",
 			configMINIMAL_STACK_SIZE, NULL,
-			configMAX_PRIORITIES-2, NULL);
+			configMAX_PRIORITIES, NULL);
 
 }
 
@@ -190,32 +194,33 @@ void in_charge(uint8_t menu)
 
 }
 
-uint8_t validation_menu(uint8_t * variable, uint8_t length)
-{
+//uint8_t validation_menu(uint8_t * variable, uint8_t length)
+//{
+//
+//	if (1 == length)
+//	{
+//		if ('0' < variable[0] && '9' >= variable[0])
+//		{
+//			return variable[0];
+//		}
+//	}
+//	return FALSE;
+//
+//}
+//
+//uint8_t validation_address(uint8_t * variable, uint8_t length)
+//{
+//	static uint8_t index;
+//
+//	if (5 > length)
+//	{
+//		for (index = 0; index < length; index++)
+//		{
+//			variable[index] = variable[index] - '0';
+//		}
+//		return TRUE;
+//	}
+//	return FALSE;
+//
+//}
 
-	if (1 == length)
-	{
-		if ('0' < variable[0] && '9' >= variable[0])
-		{
-			return variable[0];
-		}
-	}
-	return FALSE;
-
-}
-
-uint8_t validation_address(uint8_t * variable, uint8_t length)
-{
-	static uint8_t index;
-
-	if (5 > length)
-	{
-		for (index = 0; index < length; index++)
-		{
-			variable[index] = variable[index] - '0';
-		}
-		return TRUE;
-	}
-	return FALSE;
-
-}
