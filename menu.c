@@ -12,14 +12,49 @@
 #define MAIN_MENU_EVENT (1 << 0)
 #define MENU_1_EVENT (1 << 1)
 #define MENU_2_EVENT (1 << 2)
+#define MENU_SIZE (sizeof(terminal_menu) - 1)
+#define MSG1MENU1 (sizeof(msg1_menu1) - 1)
+#define MSG2MENU1 (sizeof(msg2_menu1) - 1)
+#define MSG3MENU1 (sizeof(msg3_menu1) - 1)
+
+typedef struct state {
+
+	uint8_t (*ptr)(UART_Type *, uart_handle_t *, EventGroupHandle_t); /**pointer to function*/
+
+} State;
 
 //uint8_t validation_menu(uint8_t * variable, uint8_t length);
 //uint8_t validation_address(uint8_t * variable, uint8_t length);
-void in_charge(uint8_t menu);
+uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
+uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
+uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
 
-static EventGroupHandle_t menu_events_g;
+static const State menu_state[10] = { {&main_menu},
+		{&menu_one},
+		{&menu_two},
+		{&menu_one},
+		{&menu_one},
+		{&menu_one},
+		{&menu_one},
+		{&menu_one},
+		{&menu_one},
+		{&menu_one} };
 
+static uint8_t terminal_menu[] =
+				"\r\n(1) Leer Memoria I2C\r\n(2) Escribir Memoria I2C"
+		        "\r\n(3) Establecer Hora\r\n(4) Establecer Fecha"
+		        "\r\n(5) Formato de Hora\r\n(6) Leer Hora"
+		        "\r\n(7) Leer Fecha\r\n(8) Comunicacion con terminal 2"
+		        "\r\n(9) Eco en LCD\r\n";
 
+static uint8_t msg1_menu1[] =
+				"\r\nSolo valores en hexadecimal entre 0 y 7FFF\r\nDireccion de Lectura:\r\n0x";
+
+static uint8_t msg2_menu1[] =
+				"\r\nTexto a guardar:\r\n";
+
+static uint8_t msg3_menu1[] =
+				"\r\nLongitud en bytes:\r\n";
 
 /*******************************************************************************
  * RUTINA MENU PRINCIPAL
@@ -30,37 +65,39 @@ static EventGroupHandle_t menu_events_g;
  ******************************************************************************/
 void main_menu_task(void * pvParameters)
 {
+
 	terminal_type * uart_param = (terminal_type *) pvParameters;
-	static uint8_t menu;
+	static uint8_t menu = 0;
 
 	for(;;)
 	{
-		/*******************************************************************************
-		 * SUSPEND UNTIL ITS CALLED WHILE WE'RE ON IN CHARGE FUNCTION
-		 ******************************************************************************/
-		//xEventGroupWaitBits(menu_events_g, MAIN_MENU_EVENT, pdTRUE, pdTRUE, portMAX_DELAY);
 
-		/*******************************************************************************
-		 * DEPLOY MENU
-		 ******************************************************************************/
-		send_menu_task(uart_param->xuart, &(uart_param->uart_handle),uart_param->event_group);
-		/*******************************************************************************
-		 * READ MENU FROM KEYBOARD
-		 ******************************************************************************/
-		while (0 == menu)
-		{
-			menu = read_menu_from_keyboard(uart_param->xuart,
-					&(uart_param->uart_handle), uart_param->event_group);
-		}
-		/*******************************************************************************
-		 * CHECK AND VALID THE RECEIVED VALUE && SEND MENU TO IN CHARGE FUNCTION
-		 ******************************************************************************/
-		in_charge(menu);
-		menu=0;
-		vTaskDelay(portMAX_DELAY);
+		menu = menu_state[menu].ptr(uart_param->xuart, &(uart_param->uart_handle),uart_param->event_group);
 
 	}
 
+}
+
+uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group)
+{
+
+	uint8_t menu = 0;
+
+	/*******************************************************************************
+	 * DEPLOY MENU
+	 ******************************************************************************/
+	print(xuart, (uart_handle),event_group, terminal_menu, MENU_SIZE);
+
+	/*******************************************************************************
+	 * READ MENU FROM KEYBOARD
+	 ******************************************************************************/
+	while (0 == menu)
+	{
+		menu = read_from_keyboard(xuart,
+						(uart_handle), event_group);
+	}
+
+	return menu;
 }
 
 /*******************************************************************************
@@ -72,46 +109,28 @@ void main_menu_task(void * pvParameters)
  *	se despliega otro mensaje en el cual se pedira la longitud en bytes que queremos leer
  *
  ******************************************************************************/
-void menu_task1(void * pvParameters)
+uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group)
 {
+	int16_t subaddress = -1;
+	uint16_t byte_length = 0;
+	uint8_t * reserved;
 
-//	uint8_t * address;
 
-//	xEventGroupWaitBits(get_menu_event(), 1 << 1, pdTRUE, pdTRUE,
-//			portMAX_DELAY);
-	//printf ("dame la direccion en la que quieres escribir")
+	print(xuart, (uart_handle), event_group, msg1_menu1, MSG1MENU1);
 
-	//queue receive blocking
-//	 xQueueReceive( xQueue, &address, portMAX_DELAY );
-	//guarda la direccion en un buffer
-	//printf ("escribe lo que quieras en memoria")
-	//guarda el mensaje en el buffer
-	//envialo a i2c write memory function
+	subaddress = read_from_keyboard1(xuart, (uart_handle), event_group);
 
-	//vamos a mandarle un buffer para que lo imprima la terminal que estamos usando
-	//el que mando llamar esta tarea nos debe proveer informacion como
-	//quien fue el que la mando ejecutar, cpu o bluetooth
-	//para saber en donde vamos a imprimir lo que se requiere
-	//para saber que tipo de validacion vamos a hacer es necesario conocer en que menu nos encontramos
-	//por lo que debemos encender una bandera del menu o de alguna forma informarle a la tarea validacion
-	//en donde estamos
+	print(xuart, (uart_handle), event_group, msg3_menu1, MSG3MENU1);
 
-	//como le voy a decir en que menu estoy de modo que sea mas facil comparar
+	byte_length = read_from_keyboard3(xuart, (uart_handle), event_group);
 
-	 for (;;)
-	{
-		/*******************************************************************************
-		 * SUSPEND UNTIL ITS CALLED WHILE WE'RE ON IN CHARGE FUNCTION
-		 ******************************************************************************/
-		xEventGroupWaitBits(menu_events_g, MENU_1_EVENT, pdTRUE, pdTRUE,
-		        portMAX_DELAY);
+	reserved = read_mem(subaddress, byte_length);
 
-		xEventGroupSetBits(get_i2c_event(), MEMORY_READ_EVENT);
+	print(xuart, uart_handle, event_group, reserved, byte_length);
 
-		xEventGroupWaitBits(get_i2c_event(), MEMORY_READ_DONE, pdTRUE, pdTRUE,
-				        portMAX_DELAY);
+	vPortFree(reserved);
 
-	}
+	return MAIN_MENU;
 
 }
 
@@ -124,103 +143,24 @@ void menu_task1(void * pvParameters)
  *	se despliega otro mensaje en el cual se pedira el mensaje que queremos escribir
  *
  ******************************************************************************/
-void menu_task2(void * pvParameters)
+uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group)
 {
+	int16_t subaddress = -1;
+	uart_transfer_t text_to_send = {NULL, 0};
 
 
-	 for (;;)
-	{
-		/*******************************************************************************
-		 * SUSPEND UNTIL ITS CALLED WHILE WE'RE ON IN CHARGE FUNCTION
-		 ******************************************************************************/
-		xEventGroupWaitBits(menu_events_g, MENU_2_EVENT, pdTRUE, pdTRUE,
-		portMAX_DELAY);
-	}
+	print(xuart, (uart_handle), event_group, msg1_menu1, MSG1MENU1);
 
+	subaddress = read_from_keyboard1(xuart, (uart_handle), event_group);
+
+	print(xuart, (uart_handle), event_group, msg2_menu1, MSG2MENU1);
+
+	text_to_send = read_from_keyboard2(xuart, (uart_handle), event_group);
+
+	write_mem(subaddress, text_to_send.data, (text_to_send.dataSize*(sizeof(uint8_t))));
+
+	vPortFree(text_to_send.data);
+
+	return MAIN_MENU;
 
 }
-
-
-void start_task(void * pvParameters)
-{
-
-//	xTaskCreate(main_menu_task, "terminal_select_menu",
-//			configMINIMAL_STACK_SIZE, (void *) 0,
-//			configMAX_PRIORITIES-4, NULL);
-//
-//	xTaskCreate(main_menu_task, "bluetooth_select_menu",
-//			configMINIMAL_STACK_SIZE, (void *) 0,
-//			configMAX_PRIORITIES-4, NULL);
-
-//	xTaskCreate(menu_task1, "read_eeprom",
-//			configMINIMAL_STACK_SIZE, NULL,
-//			configMAX_PRIORITIES-4, NULL);
-//
-//	xTaskCreate(menu_task2, "write_eeprom",
-//			configMINIMAL_STACK_SIZE, NULL,
-//			configMAX_PRIORITIES-4, NULL);
-
-	/*******************************************************************************
-	 * EVENTS CREATION
-	 ******************************************************************************/
-	menu_events_g = xEventGroupCreate();
-	/*******************************************************************************
-	 * GO TO MAIN MENU TASK
-	 ******************************************************************************/
-	in_charge(MAIN_MENU);
-
-	vTaskDelete(NULL);
-
-}
-
-void init_menu(void)
-{
-
-	xTaskCreate(start_task, "create_menus_task",
-			configMINIMAL_STACK_SIZE, NULL,
-			configMAX_PRIORITIES, NULL);
-
-}
-
-/*******************************************************************************
- * IN CHARGE
- *
- * Cual menu sigue despues
- ******************************************************************************/
-void in_charge(uint8_t menu)
-{
-
-	xEventGroupSetBits(menu_events_g, 1 << menu);
-
-}
-
-//uint8_t validation_menu(uint8_t * variable, uint8_t length)
-//{
-//
-//	if (1 == length)
-//	{
-//		if ('0' < variable[0] && '9' >= variable[0])
-//		{
-//			return variable[0];
-//		}
-//	}
-//	return FALSE;
-//
-//}
-//
-//uint8_t validation_address(uint8_t * variable, uint8_t length)
-//{
-//	static uint8_t index;
-//
-//	if (5 > length)
-//	{
-//		for (index = 0; index < length; index++)
-//		{
-//			variable[index] = variable[index] - '0';
-//		}
-//		return TRUE;
-//	}
-//	return FALSE;
-//
-//}
-

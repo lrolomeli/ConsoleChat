@@ -18,6 +18,6 @@
  * Prototypes
  ******************************************************************************/
 void main_menu_task(void * pvParameters);
-void init_menu(void);
-
+void menu_task1(void * pvParameters);
+void in_charge(uint8_t menu);
 #endif /* MENU_H_ */

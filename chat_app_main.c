@@ -23,10 +23,9 @@ int main(void)
 	BOARD_InitDebugConsole();
 
 	//lcd_spi_pins_init();
-	//i2c_init_peripherals();
+	i2c_init_peripherals();
 	bt_terminal_init();
 	serial_terminal_init();
-	init_menu();
 
 	vTaskStartScheduler();
 

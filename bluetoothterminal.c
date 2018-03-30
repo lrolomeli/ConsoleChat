@@ -82,12 +82,14 @@ void bt_terminal_init(void)
 	NVIC_SetPriority(UART1_RX_TX_IRQn, 6);
 
 	bluetoothterm_events_g = xEventGroupCreate();
-
+	bluetooth.queue = xQueueCreate(1, sizeof(uint8_t));
 	bluetooth.event_group = bluetoothterm_events_g;
 
+
 	xTaskCreate(main_menu_task, "bluetooth_select_menu",
-	configMINIMAL_STACK_SIZE, (void *) &bluetooth,
+	500, (void *) &bluetooth,
 	configMAX_PRIORITIES - 4, NULL);
+
 
 }
 

@@ -81,6 +81,10 @@ typedef struct
 
 } i2c_type;
 
+
+#define EEPROM_SLAVE_ADDRESS 0x50
+#define EEPROM_ADDRESS_SIZE 2
+
 #define RTC_SLAVE_ADDRESS 0x51
 #define RTC_CONTROL_REGISTER 0x00
 #define ONE_BYTE_SIZE 1
@@ -110,6 +114,7 @@ void i2c_init_peripherals();
 SemaphoreHandle_t transfer_i2c_semaphore;
 SemaphoreHandle_t mutex_transfer_i2c;
 EventGroupHandle_t i2c_events_g;
+i2c_master_handle_t g_m_handle;
 
 void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData)
 {
@@ -123,62 +128,49 @@ void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t s
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-void write_mem(void * pvParameters)
+void write_mem(int16_t subaddress, uint8_t buffer[], uint8_t dataSize)
 {
 	//////////////////////////////////////////ESCRIBIR MEMORIA LISTO//////////////////////////////////////////////////////////////////////
 	static i2c_master_transfer_t masterXfer;
-	i2c_type * w_mem = (i2c_type*) pvParameters;
 
-		masterXfer.slaveAddress = w_mem->slaveAddress;
-	    masterXfer.direction = kI2C_Write;
-	    masterXfer.subaddress = w_mem->subaddress;
-	    masterXfer.subaddressSize = 2;
-	    masterXfer.data = w_mem->data_buffer;
-	    masterXfer.dataSize = w_mem->data_size;
-	    masterXfer.flags = kI2C_TransferDefaultFlag;
+	masterXfer.slaveAddress = EEPROM_SLAVE_ADDRESS;
+	masterXfer.direction = kI2C_Write;
+	masterXfer.subaddress = subaddress;
+	masterXfer.subaddressSize = EEPROM_ADDRESS_SIZE;
+	masterXfer.data = buffer;
+	masterXfer.dataSize = dataSize;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
 
-
-	for(;;)
-	{
-		/*Whenever we need to send the menu to the terminal
-		 * We will wait for this event rather BT or CPU*/
-		xEventGroupWaitBits(i2c_events_g, MEMORY_READ_EVENT, pdTRUE, pdTRUE,
-				portMAX_DELAY);
-
-		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-		I2C_MasterTransferNonBlocking(I2C0, w_mem->handle, &masterXfer);
-		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-		xSemaphoreGive(mutex_transfer_i2c);
-
-		xEventGroupSetBits(i2c_events_g, MEMORY_READ_DONE);
-	}
+	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	xSemaphoreGive(mutex_transfer_i2c);
 
 }
 
-//void read_mem(void * pvParameters)
-//{
-//	static i2c_master_transfer_t masterXfer;
-//	i2c_type * r_mem = (i2c_type *) pvParameters;
-//
-//	//////////////////////////////////////////LEER MEMORIA LISTO//////////////////////////////////////////////////////////////////////
-//	masterXfer.slaveAddress = r_mem->slaveAddress;
-//    masterXfer.direction = kI2C_Read;
-//    masterXfer.subaddress = r_mem->subaddress;
-//    masterXfer.subaddressSize = 2;
-//    masterXfer.data = r_mem->data_buffer;
-//    masterXfer.dataSize = r_mem->data_size;
-//    masterXfer.flags = kI2C_TransferDefaultFlag;
-//
-//	for(;;)
-//	{
-//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-//	    I2C_MasterTransferNonBlocking(I2C0, r_mem->handle, &masterXfer);
-//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-//	    xSemaphoreGive(mutex_transfer_i2c);
-//
-//	}
-//}
-//*/
+uint8_t * read_mem(int16_t subaddress, uint16_t dataSize)
+{
+	static i2c_master_transfer_t masterXfer;
+	uint8_t * data_buffer;
+
+	data_buffer = (uint8_t *)pvPortMalloc(dataSize * sizeof(uint8_t));
+	//////////////////////////////////////////LEER MEMORIA LISTO//////////////////////////////////////////////////////////////////////
+	masterXfer.slaveAddress = EEPROM_SLAVE_ADDRESS;
+	masterXfer.direction = kI2C_Read;
+	masterXfer.subaddress = subaddress;
+	masterXfer.subaddressSize = EEPROM_ADDRESS_SIZE;
+	masterXfer.data = data_buffer;
+	masterXfer.dataSize = dataSize;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	xSemaphoreGive(mutex_transfer_i2c);
+
+	return data_buffer;
+}
+
 void init_clk(void * pvParameters)
 {
 	static i2c_master_transfer_t masterXfer;
@@ -382,9 +374,8 @@ void init_clk(void * pvParameters)
 void i2c_init_peripherals(void)
 {
     static i2c_master_config_t masterConfig;
-	static i2c_master_handle_t g_m_handle;
 
-	static i2c_type w_mem;
+//	static i2c_type w_mem;
 /**
 	static i2c_type r_mem;
 	static i2c_type w_time;
@@ -412,12 +403,11 @@ void i2c_init_peripherals(void)
 
 
     ///////////////////////////////parametros para escribir en memoria////////////////////////////////////////////////////////
-    w_mem.slaveAddress = 0x50;
-    w_mem.subaddress = 0x00;			 //variable para la direccion a escribir
-    w_mem.data_size = 2;				 //variable de cantidad de datos a escribir
-    w_mem.data_buffer[0] = 1;			 //son el contenido del arreglo en el buffer
-    w_mem.data_buffer[1] = 'a';          //son el contenido del arreglo en el buffer
-    w_mem.handle = &g_m_handle;
+//    w_mem.subaddress = 0x00;			 //variable para la direccion a escribir
+//    w_mem.data_size = 2;				 //variable de cantidad de datos a escribir
+//    w_mem.data_buffer[0] = 1;			 //son el contenido del arreglo en el buffer
+//    w_mem.data_buffer[1] = 'a';          //son el contenido del arreglo en el buffer
+//    w_mem.handle = &g_m_handle;
 
 
 //    ///////////////////////////////parametros para leer en memoria////////////////////////////////////////////////////////
@@ -476,13 +466,13 @@ void i2c_init_peripherals(void)
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle, i2c_master_callback,
 			NULL);
 
-	xTaskCreate(write_mem, "write_mem", configMINIMAL_STACK_SIZE,
-			(void *) &w_mem, configMAX_PRIORITIES - 1, NULL);
+//	xTaskCreate(write_mem, "write_mem", configMINIMAL_STACK_SIZE,
+//			(void *) &w_mem, configMAX_PRIORITIES - 1, NULL);
 
 	//xTaskCreate(read_mem,  "read_mem" , 150, (void *) &r_mem, 3, NULL);
 
-	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) &g_m_handle,
-			configMAX_PRIORITIES, NULL);
+//	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) &g_m_handle,
+//			configMAX_PRIORITIES, NULL);
 
 	//xTaskCreate(read_time,  "read_time" , 250, (void *) &r_time, 3, NULL);
 

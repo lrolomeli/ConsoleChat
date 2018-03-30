@@ -78,14 +78,12 @@ void serial_terminal_init(void)
     NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
 
     serialterm_events_g = xEventGroupCreate();
-
+    serialterm.queue = xQueueCreate(1, sizeof(uint8_t));
     serialterm.event_group = serialterm_events_g;
 
 	xTaskCreate(main_menu_task, "terminal_select_menu",
-			configMINIMAL_STACK_SIZE, (void *) &serialterm,
+			500, (void *) &serialterm,
 			configMAX_PRIORITIES-4, NULL);
-
-
 
 }
 

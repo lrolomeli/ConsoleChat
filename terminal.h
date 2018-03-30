@@ -39,8 +39,13 @@ typedef struct {
 /*******************************************************************************
  * Tasks
  ******************************************************************************/
-void send_menu_task(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
-uint8_t read_menu_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+void print(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, uint8_t printmsg[], uint16_t size);
+uint8_t read_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+int16_t read_from_keyboard1(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+uint16_t read_from_keyboard3(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 uint8_t validate_number(uint8_t keyboard_data);
-
+int8_t validatation_number(uint8_t keyboard_data);
+int8_t validation_address(uint8_t keyboard_data);
+uint8_t* storing_phrase(uint8_t phrase_length, uint8_t * phrase);
 #endif /* TERMINAL_H_ */
