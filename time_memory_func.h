@@ -16,9 +16,24 @@
 #define MEMORY_READ_EVENT (1 << 0)
 #define MEMORY_READ_DONE (1 << 1)
 
+#define MASK_UNITS		(0X0FU)
+#define MASK_TENS		(0XF0U)
+
+
+#define UNITS_SECONDS		(5)
+#define TENS_SECONDS		(4)
+#define UNITS_MINUTES		(3)
+#define TENS_MINUTES		(2)
+#define UNITS_HOURS			(1)
+#define TENS_HOURS			(0)
+
+
 void i2c_init_peripherals(void);
 EventGroupHandle_t get_i2c_event(void);
 
 void write_mem(int16_t subaddress, uint8_t buffer[], uint8_t dataSize);
 uint8_t * read_mem(int16_t subaddress, uint16_t dataSize);
+
+void write_time(uint8_t buffer[]);
+
 #endif /* TIME_MEMORY_FUNC_H_ */

@@ -86,15 +86,13 @@ typedef struct
 #define EEPROM_ADDRESS_SIZE 2
 
 #define RTC_SLAVE_ADDRESS 0x51
+#define RTC_ADDRESS_SIZE 3
+#define RTC_DATA_SIZE 3
+#define RTC_SUBADDRESS_HOUR 0x02
 #define RTC_CONTROL_REGISTER 0x00
 #define ONE_BYTE_SIZE 1
 
-#define MASK_U_MINUTES             (0X0FU)
-#define MASK_D_MINUTES             (0XF0U)
-#define MASK_U_SECONDS             (0X0FU)
-#define MASK_D_SECONDS             (0XF0U)
-#define MASK_U_HOURS               (0X0FU)
-#define MASK_D_HOURS               (0XF0U)
+
 #define MASK_FORMAT_AM_OR_PM_HOURS (0X40U)
 #define MASK_FORMAT_24_OR_12_HOURS (0X80U)
 #define MASK_FORMAT_Y_YEAR         (0XC0U)
@@ -218,31 +216,26 @@ void init_clk(void * pvParameters)
 //	}
 //}
 //
-//void write_time(void * pvParameters)
-//{
-//	//////////////////////////////////////////ESCRIBIR  medio listo//////////////////////////////////////////////////////////////////////
-//	static i2c_master_transfer_t masterXfer;
-//	i2c_type * w_time = (i2c_type*) pvParameters;
-//
-//		masterXfer.slaveAddress = w_time->slaveAddress;
-//	    masterXfer.direction = kI2C_Write;
-//	    masterXfer.subaddress = w_time->subaddress;
-//	    masterXfer.subaddressSize = 1;
-//	    masterXfer.data = w_time->data_buffer;
-//	    masterXfer.dataSize =  w_time->data_size;;
-//	    masterXfer.flags = kI2C_TransferDefaultFlag;
-//
-//
-//	for(;;)
-//	{
-//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-//		I2C_MasterTransferNonBlocking(I2C0,  w_time->handle, &masterXfer);
-//		xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-//		xSemaphoreGive(mutex_transfer_i2c);
-//		vTaskDelete(NULL);
-//}
-//
-//}
+void write_time(uint8_t buffer[])
+{
+	//////////////////////////////////////////ESCRIBIR  medio listo//////////////////////////////////////////////////////////////////////
+	static i2c_master_transfer_t masterXfer;
+
+	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
+	masterXfer.direction = kI2C_Write;
+	masterXfer.subaddress = RTC_SUBADDRESS_HOUR;
+	masterXfer.subaddressSize = RTC_ADDRESS_SIZE;
+	masterXfer.data = buffer;
+	masterXfer.dataSize = RTC_DATA_SIZE;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
+
+
+	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle, &masterXfer);
+	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	xSemaphoreGive(mutex_transfer_i2c);
+
+}
 //
 //void format_of_hour(void * pvParameters)
 //{

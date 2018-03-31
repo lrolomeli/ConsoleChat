@@ -16,6 +16,10 @@
 #define MSG1MENU1 (sizeof(msg1_menu1) - 1)
 #define MSG2MENU1 (sizeof(msg2_menu1) - 1)
 #define MSG3MENU1 (sizeof(msg3_menu1) - 1)
+#define MSG1MENU3 (sizeof(msg1_menu3) - 1)
+#define MSG2MENU3 (sizeof(msg2_menu3) - 1)
+
+
 
 typedef struct state {
 
@@ -27,12 +31,14 @@ typedef struct state {
 //uint8_t validation_address(uint8_t * variable, uint8_t length);
 uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
 uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
+uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
 uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group);
+uint8_t * check_hour(uart_transfer_t hour);
 
 static const State menu_state[10] = { {&main_menu},
 		{&menu_one},
 		{&menu_two},
-		{&menu_one},
+		{&menu_three},
 		{&menu_one},
 		{&menu_one},
 		{&menu_one},
@@ -48,13 +54,19 @@ static uint8_t terminal_menu[] =
 		        "\r\n(9) Eco en LCD\r\n";
 
 static uint8_t msg1_menu1[] =
-				"\r\nSolo valores en hexadecimal entre 0 y 7FFF\r\nDireccion de Lectura:\r\n0x";
+				"\r\nSolo valores en hexadecimal entre 0 y 7FFF\r\nDireccion de memoria:\r\n0x";
 
 static uint8_t msg2_menu1[] =
 				"\r\nTexto a guardar:\r\n";
 
 static uint8_t msg3_menu1[] =
 				"\r\nLongitud en bytes:\r\n";
+
+static uint8_t msg1_menu3[] =
+				"\r\nEscribir hora en hh/mm/ss: ";
+
+static uint8_t msg2_menu3[] =
+				"\r\nLa hora fue modificada... ";
 
 /*******************************************************************************
  * RUTINA MENU PRINCIPAL
@@ -162,5 +174,87 @@ uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle
 	vPortFree(text_to_send.data);
 
 	return MAIN_MENU;
+
+}
+
+/*******************************************************************************
+ * RUTINA MENU 3
+ *
+ *	Esta rutina desplegara un mensaje que pedira la hora en formato de 23:59:59
+ *	despues espera respuesta por parte del usuario, hasta que se presiona enter
+ *	se valida lo que el usuario introdujo y se regresa un mensaje de comprobacion
+ *
+ ******************************************************************************/
+uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group)
+{
+	uart_transfer_t hour = {NULL, 0};
+	uint8_t * time;
+
+	print(xuart, (uart_handle), event_group, msg1_menu3, MSG1MENU3);
+
+	do
+	{
+		hour = read_from_keyboard2(xuart, (uart_handle), event_group);
+
+		time = check_hour(hour);
+
+		if(NULL == time)
+		{
+			print(xuart, (uart_handle), event_group, msg1_menu3, MSG1MENU3);
+		}
+
+	} while (NULL == time);
+
+	write_time(time);
+
+	print(xuart, (uart_handle), event_group, msg2_menu3, MSG2MENU3);
+
+
+	return MAIN_MENU;
+
+}
+
+uint8_t * check_hour(uart_transfer_t hour)
+{
+	int8_t time[6] = {0};
+	int8_t time2[3] = {0};
+	uint8_t * time_to_send;
+	time_to_send = (uint8_t *)pvPortMalloc(3 * sizeof(uint8_t));
+
+	if(8 == hour.dataSize)
+	{
+		time[TENS_HOURS] = ( '0' <= hour.data[0] && '2' >= hour.data[0] ) ? (hour.data[0] - '0') : -1;
+		if(time[TENS_HOURS] == 2)
+		{
+			time[UNITS_HOURS] = ( '0' <= hour.data[1] && '3' >= hour.data[1] ) ? (hour.data[1] - '0') : -1;
+		}
+		else
+		{
+			time[UNITS_HOURS] = ( '0' <= hour.data[1] && '9' >= hour.data[1] ) ? (hour.data[1] - '0') : -1;
+		}
+
+		time[TENS_MINUTES] = ( '0' <= hour.data[3] && '5' >= hour.data[3] ) ? (hour.data[3] - '0') : -1;
+		time[UNITS_MINUTES] = ( '0' <= hour.data[4] && '9' >= hour.data[4] ) ? (hour.data[4] - '0') : -1;
+
+		time[TENS_SECONDS] = ( '0' <= hour.data[6] && '5' >= hour.data[6] ) ? (hour.data[6] - '0') : -1;
+		time[UNITS_SECONDS] = ( '0' <= hour.data[7] && '9' >= hour.data[7] ) ? (hour.data[7] - '0') : -1;
+
+		if (-1 == time[TENS_HOURS] || -1 == time[UNITS_HOURS] || -1 == time[TENS_MINUTES] || -1 == time[UNITS_MINUTES]
+		        || -1 == time[TENS_SECONDS] || -1 == time[UNITS_SECONDS])
+		{
+			return NULL;
+		}
+		else
+		{
+			time2[0] = ((time[TENS_HOURS] << 4) & MASK_TENS) | (time[UNITS_HOURS] & MASK_UNITS);
+			time2[1] = ((time[TENS_MINUTES] << 4) & MASK_TENS) | (time[UNITS_MINUTES] & MASK_UNITS);
+			time2[2] = ((time[TENS_SECONDS] << 4) & MASK_TENS) | (time[UNITS_SECONDS] & MASK_UNITS);
+			time_to_send = (uint8_t *) time2;
+			return time_to_send;
+		}
+
+	}
+
+	return NULL;
 
 }
