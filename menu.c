@@ -217,9 +217,10 @@ uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHand
 uint8_t * check_hour(uart_transfer_t hour)
 {
 	int8_t time[6] = {0};
-	int8_t time2[3] = {0};
-	uint8_t * time_to_send;
-	time_to_send = (uint8_t *)pvPortMalloc(3 * sizeof(uint8_t));
+	static int8_t time_to_send[3] = {0};
+	time_to_send[0]=-1;
+	time_to_send[1]=-1;
+	time_to_send[2]=-1;
 
 	if(8 == hour.dataSize)
 	{
@@ -246,11 +247,10 @@ uint8_t * check_hour(uart_transfer_t hour)
 		}
 		else
 		{
-			time2[0] = ((time[TENS_HOURS] << 4) & MASK_TENS) | (time[UNITS_HOURS] & MASK_UNITS);
-			time2[1] = ((time[TENS_MINUTES] << 4) & MASK_TENS) | (time[UNITS_MINUTES] & MASK_UNITS);
-			time2[2] = ((time[TENS_SECONDS] << 4) & MASK_TENS) | (time[UNITS_SECONDS] & MASK_UNITS);
-			time_to_send = (uint8_t *) time2;
-			return time_to_send;
+			time_to_send[0] = ((time[TENS_HOURS] << 4) & MASK_TENS) | (time[UNITS_HOURS] & MASK_UNITS);
+			time_to_send[1] = ((time[TENS_MINUTES] << 4) & MASK_TENS) | (time[UNITS_MINUTES] & MASK_UNITS);
+			time_to_send[2] = ((time[TENS_SECONDS] << 4) & MASK_TENS) | (time[UNITS_SECONDS] & MASK_UNITS);
+			return (uint8_t *)time_to_send;
 		}
 
 	}
