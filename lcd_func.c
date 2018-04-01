@@ -14,9 +14,15 @@
 	    The SPI device driver needs to be completed.
  */
 
-#include "LCDNokia5110.h"
-#include "LCDNokia5110Images.h"
+#include "lcd_func.h"
+#include "menu.h"
 
+EventGroupHandle_t lcd_term_event;
+
+EventGroupHandle_t get_lcd_term_event(void)
+{
+	return lcd_term_event;
+}
 
 void nokia_lcd_init_task(void * pvParameters)
 {
@@ -27,8 +33,9 @@ void nokia_lcd_init_task(void * pvParameters)
     vTaskDelay(100);/**delay of 100ms for properly reset*/
     GPIO_SetPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
 
-    LCDNokia_init();
-
+	LCDNokia_init();
+//	xTaskCreate(print_time_lcd_task, "lcd_nokia_print_time", 200, NULL,
+//	configMAX_PRIORITIES - 1, NULL);
 	printline(Normal_print, first_line, first_row);
 	printline(Inverse_print, second_line, second_row);
 	vTaskDelete(NULL);
@@ -46,6 +53,7 @@ void lcd_spi_pins_init(void)
     xTaskCreate(nokia_lcd_init_task, "lcd_nokia_init", 200, NULL,
             configMAX_PRIORITIES, NULL);
 
+    lcd_term_event = xEventGroupCreate();
     NVIC_EnableIRQ(SPI0_IRQn);
     NVIC_SetPriority(SPI0_IRQn, 5);
 }

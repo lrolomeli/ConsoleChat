@@ -22,7 +22,7 @@ int main(void)
 	/* Init FSL debug console. */
 	BOARD_InitDebugConsole();
 
-	//lcd_spi_pins_init();
+	lcd_spi_pins_init();
 	i2c_init_peripherals();
 	bt_terminal_init();
 	serial_terminal_init();

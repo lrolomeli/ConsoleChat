@@ -130,6 +130,31 @@ uint8_t read_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, Event
 
 }
 
+void wait_for_esc(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group)
+{
+	static uart_transfer_t receiveXfer;
+	static uint8_t g_rxBuffer;
+
+    /* Start to echo. */
+    receiveXfer.data = &g_rxBuffer;
+    receiveXfer.dataSize = 1;
+	while('\r' != g_rxBuffer)
+	{
+	/* The first UART task which is called, prepares to receive but the buffer is not ready
+	 * until an interrupt occurs. */
+	UART_TransferReceiveNonBlocking(xuart, uart_handle, &receiveXfer, NULL);
+
+	/* This will sleep the task till callback set the event bit. As this is not an atomic instruction,
+	 * it could be interrupted in the middle of setting values and other task may corrupt the
+	 * receive buffer for this reason we use MUTEX to protect the UART. */
+	xEventGroupWaitBits(event_group, EVENT_RX, pdTRUE, pdTRUE,
+	portMAX_DELAY);
+	}
+
+	g_rxBuffer = 0;
+
+}
+
 int16_t read_from_keyboard1(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group)
 {
 	static uart_transfer_t sendXfer;

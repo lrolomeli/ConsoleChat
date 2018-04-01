@@ -43,8 +43,9 @@
 #include "fsl_port.h"
 #include "time_memory_func.h"
 #include "chat_app_main.h"
-
-
+#include "terminal.h"
+#include "serialterminal.h"
+#include "bluetoothterminal.h"
 
 
 
@@ -113,6 +114,12 @@ SemaphoreHandle_t transfer_i2c_semaphore;
 SemaphoreHandle_t mutex_transfer_i2c;
 EventGroupHandle_t i2c_events_g;
 i2c_master_handle_t g_m_handle;
+QueueHandle_t time_mailbox;
+
+QueueHandle_t get_time_mailbox(void)
+{
+	return time_mailbox;
+}
 
 void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle, status_t status, void * userData)
 {
@@ -173,7 +180,6 @@ void init_clk(void * pvParameters)
 {
 	static i2c_master_transfer_t masterXfer;
 	static uint8_t buffer = 0x00;
-	i2c_master_handle_t * handle = (i2c_master_handle_t *) pvParameters;
 
 	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
 	masterXfer.direction = kI2C_Write;
@@ -184,38 +190,47 @@ void init_clk(void * pvParameters)
 	masterXfer.flags = kI2C_TransferDefaultFlag;
 
 	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-	I2C_MasterTransferNonBlocking(I2C0, (handle), &masterXfer);
+	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
 	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
 	xSemaphoreGive(mutex_transfer_i2c);
 	vTaskDelete(NULL);
 
 }
-///**
-//void read_time(void * pvParameters)
-//{
-//	static i2c_master_transfer_t masterXfer;
-//	i2c_type * r_time = (i2c_type *) pvParameters;
-//
-//	//////////////////////////////////////////LEER TIEMPO LISTO//////////////////////////////////////////////////////////////////////
-//	masterXfer.slaveAddress = r_time->slaveAddress;
-//    masterXfer.direction = kI2C_Read;
-//    masterXfer.subaddress = r_time->subaddress;
-//    masterXfer.subaddressSize = 1;
-//    masterXfer.data = r_time->data_buffer;
-//    masterXfer.dataSize = r_time->data_size;
-//    masterXfer.flags = kI2C_TransferDefaultFlag;
-//
-//	for(;;)
-//	{
-//		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-//	    I2C_MasterTransferNonBlocking(I2C0, (r_time->handle), &masterXfer);
-//	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-//	    xSemaphoreGive(mutex_transfer_i2c);
-//	    PRINTF("\r%x : %x : %x ", r_time->data_buffer[2], r_time->data_buffer[1], r_time->data_buffer[0]);
-//
-//	}
-//}
-//
+
+void read_time(void * pvParameters)
+{
+	TickType_t xLastWakeTime;
+	static i2c_master_transfer_t masterXfer;
+	static uint8_t buffer[3];
+	const TickType_t xPeriod = pdMS_TO_TICKS(1000);
+	xLastWakeTime = xTaskGetTickCount();
+	//////////////////////////////////////////LEER TIEMPO LISTO//////////////////////////////////////////////////////////////////////
+	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
+    masterXfer.direction = kI2C_Read;
+    masterXfer.subaddress = RTC_SUBADDRESS_HOUR;
+    masterXfer.subaddressSize = RTC_ADDRESS_SIZE;
+    masterXfer.data = buffer;
+    masterXfer.dataSize = RTC_DATA_SIZE;
+    masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	for(;;)
+	{
+		xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	    I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	    xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	    xSemaphoreGive(mutex_transfer_i2c);
+	    //send to buffer
+	    xQueueSendToBack(time_mailbox, buffer, 0);
+	    //activar un evento que comunique a las tareas.
+	    xEventGroupSetBits(get_serialterm_event(), PRINT_TIME);
+	    xEventGroupSetBits(get_bluetoothterm_event(), PRINT_TIME);
+	    xEventGroupSetBits(get_lcd_term_event(), PRINT_TIME);
+	    //xEventGroupSetBits(get_lcd_event(), PRINT_TIME);
+	    vTaskDelayUntil(&xLastWakeTime, xPeriod);
+	}
+}
+
+
 void write_time(uint8_t buffer[])
 {
 	//////////////////////////////////////////ESCRIBIR  medio listo//////////////////////////////////////////////////////////////////////
@@ -409,11 +424,6 @@ void i2c_init_peripherals(void)
 //    r_mem.data_size = 2;
 //    r_mem.handle = &g_m_handle;
 //
-//    ///////////////////////////////parametros para leer el tiempo en el reloj////////////////////////////////////////////////////////
-//    r_time.slaveAddress = 0x51;
-//    r_time.subaddress = 0x02;			 //variable para la direccion a escribir
-//    r_time.data_size = 3;				 //variable de cantidad de datos a escribir
-//    r_time.handle = &g_m_handle;
 //
 //    ///////////////////////////////parametros para leer la fecha en el reloj////////////////////////////////////////////////////////
 //    r_date.slaveAddress = 0x51;
@@ -464,10 +474,10 @@ void i2c_init_peripherals(void)
 
 	//xTaskCreate(read_mem,  "read_mem" , 150, (void *) &r_mem, 3, NULL);
 
-//	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) &g_m_handle,
-//			configMAX_PRIORITIES, NULL);
+	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) 0,
+			configMAX_PRIORITIES, NULL);
 
-	//xTaskCreate(read_time,  "read_time" , 250, (void *) &r_time, 3, NULL);
+	xTaskCreate(read_time,  "read_time" , configMINIMAL_STACK_SIZE, (void *) 0, configMAX_PRIORITIES, NULL);
 
 	//xTaskCreate(read_date,  "read_date" , 250, (void *) &r_date, 4, NULL);
 
@@ -483,6 +493,7 @@ void i2c_init_peripherals(void)
 	transfer_i2c_semaphore = xSemaphoreCreateBinary();
 	i2c_events_g = xEventGroupCreate();
 	mutex_transfer_i2c = xSemaphoreCreateMutex();
+	time_mailbox = xQueueCreate(1, sizeof(uint8_t *));
 
 }
 /**void digiToAscii(uint8_t var)

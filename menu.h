@@ -17,7 +17,9 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
+void init_menu(void);
 void main_menu_task(void * pvParameters);
-void menu_task1(void * pvParameters);
-void in_charge(uint8_t menu);
+void print_time_task(void * pvParameters);
+void print_time_lcd_task(void * pvParameters);
+
 #endif /* MENU_H_ */

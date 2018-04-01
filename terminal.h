@@ -31,11 +31,8 @@ typedef struct {
  ******************************************************************************/
 #define EVENT_RX 				(1 << 0)
 #define EVENT_TX 				(1 << 1)
-#define DEPLOY_MENU 			(1 << 2)
-#define DEPLOY_MENU_SET			(1 << 3)
-#define READ_FROM_KEYBOARD		(1 << 4)
-#define KEEP_READING			(1 << 5)
-
+#define PRINT_TIME				(1 << 2)
+#define EXIT_TIME				(1 << 3)
 /*******************************************************************************
  * Tasks
  ******************************************************************************/
@@ -44,6 +41,7 @@ uint8_t read_from_keyboard(UART_Type * xuart, uart_handle_t * uart_handle, Event
 int16_t read_from_keyboard1(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 uint16_t read_from_keyboard3(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+void wait_for_esc(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 uint8_t validate_number(uint8_t keyboard_data);
 int8_t validatation_number(uint8_t keyboard_data);
 int8_t validation_address(uint8_t keyboard_data);

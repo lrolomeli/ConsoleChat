@@ -78,12 +78,16 @@ void serial_terminal_init(void)
     NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
 
     serialterm_events_g = xEventGroupCreate();
-    serialterm.queue = xQueueCreate(1, sizeof(uint8_t));
     serialterm.event_group = serialterm_events_g;
+    serialterm.queue = xQueueCreate(1, sizeof(uint8_t));
 
 	xTaskCreate(main_menu_task, "terminal_select_menu",
 			500, (void *) &serialterm,
 			configMAX_PRIORITIES-4, NULL);
+
+	xTaskCreate(print_time_task, "print_time_task_terminal",
+	200, (void *) &serialterm,
+	configMAX_PRIORITIES -4, NULL);
 
 }
 
@@ -93,4 +97,3 @@ EventGroupHandle_t get_serialterm_event(void)
 	return serialterm_events_g;
 
 }
-

@@ -13,7 +13,6 @@
 #include "semphr.h"
 #include "event_groups.h"
 
-QueueHandle_t get_bluetoothterm_queue(void);
 EventGroupHandle_t get_bluetoothterm_event(void);
 void bt_terminal_init(void);
 
