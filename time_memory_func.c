@@ -46,6 +46,7 @@
 #include "terminal.h"
 #include "serialterminal.h"
 #include "bluetoothterminal.h"
+#include "lcd_func.h"
 
 
 
@@ -176,32 +177,12 @@ uint8_t * read_mem(int16_t subaddress, uint16_t dataSize)
 	return data_buffer;
 }
 
-void init_clk(void * pvParameters)
-{
-	static i2c_master_transfer_t masterXfer;
-	static uint8_t buffer = 0x00;
-
-	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
-	masterXfer.direction = kI2C_Write;
-	masterXfer.subaddress = RTC_CONTROL_REGISTER;
-	masterXfer.subaddressSize = ONE_BYTE_SIZE;
-	masterXfer.data = &buffer;
-	masterXfer.dataSize = ONE_BYTE_SIZE;
-	masterXfer.flags = kI2C_TransferDefaultFlag;
-
-	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
-	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
-	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
-	xSemaphoreGive(mutex_transfer_i2c);
-	vTaskDelete(NULL);
-
-}
 
 void read_time(void * pvParameters)
 {
 	TickType_t xLastWakeTime;
 	static i2c_master_transfer_t masterXfer;
-	static uint8_t buffer[3];
+	uint8_t buffer[3];
 	const TickType_t xPeriod = pdMS_TO_TICKS(1000);
 	xLastWakeTime = xTaskGetTickCount();
 	//////////////////////////////////////////LEER TIEMPO LISTO//////////////////////////////////////////////////////////////////////
@@ -221,11 +202,9 @@ void read_time(void * pvParameters)
 	    xSemaphoreGive(mutex_transfer_i2c);
 	    //send to buffer
 	    xQueueSendToBack(time_mailbox, buffer, 0);
-	    //activar un evento que comunique a las tareas.
-	    xEventGroupSetBits(get_serialterm_event(), PRINT_TIME);
-	    xEventGroupSetBits(get_bluetoothterm_event(), PRINT_TIME);
-	    xEventGroupSetBits(get_lcd_term_event(), PRINT_TIME);
-	    //xEventGroupSetBits(get_lcd_event(), PRINT_TIME);
+	    xQueueSendToBack(get_serial_time_queue(), buffer, 0);
+	    xQueueSendToBack(get_bt_time_queue(), buffer, 0);
+
 	    vTaskDelayUntil(&xLastWakeTime, xPeriod);
 	}
 }
@@ -345,113 +324,51 @@ void write_time(uint8_t buffer[])
 //}
 
 
+void init_clk(void * pvParameters)
+{
+	static i2c_master_transfer_t masterXfer;
+	static uint8_t buffer = 0x00;
 
+	xTaskCreate(read_time, "read_time", configMINIMAL_STACK_SIZE, (void *) 0,
+	        configMAX_PRIORITIES-1, NULL);
 
+	masterXfer.slaveAddress = RTC_SLAVE_ADDRESS;
+	masterXfer.direction = kI2C_Write;
+	masterXfer.subaddress = RTC_CONTROL_REGISTER;
+	masterXfer.subaddressSize = ONE_BYTE_SIZE;
+	masterXfer.data = &buffer;
+	masterXfer.dataSize = ONE_BYTE_SIZE;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
 
+	xSemaphoreTake(mutex_transfer_i2c, portMAX_DELAY);
+	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle, &masterXfer);
+	xSemaphoreTake(transfer_i2c_semaphore, portMAX_DELAY);
+	xSemaphoreGive(mutex_transfer_i2c);
+	vTaskDelete(NULL);
 
-/*
- * @brief   Application entry point.
- */
-//int main(void)
-//{
-//
-//
-//
-//    /* Init board hardware. */
-//    BOARD_InitBootPins();
-//    BOARD_InitBootClocks();
-//    BOARD_InitBootPeripherals();
-//    /* Init FSL debug console. */
-//    BOARD_InitDebugConsole();
-//
-//    i2c_init_peripherals();
-//
-//
-//	vTaskStartScheduler();
-//
-//
-//
-//    /* Enter an infinite loop, just incrementing a counter. */
-//	for(;;)
-//	{
-//
-//	}
-//    return 0;
-//}
+}
+
 
 void i2c_init_peripherals(void)
 {
     static i2c_master_config_t masterConfig;
 
-//	static i2c_type w_mem;
-/**
-	static i2c_type r_mem;
-	static i2c_type w_time;
-	static i2c_type w_date;
-	static i2c_type f_time;
-	static i2c_type r_time;
-	static i2c_type w_clk;
-	static i2c_type r_date;
-
-    date.d_day = 1;
-    date.u_day = 3;
-    date.d_month = 1;
-    date.u_month = 1;
-    date.years = 0;
-
-    time.u_seconds = 5;
-    time.d_seconds = 2;
-    time.u_minutes = 5;
-    time.d_minutes = 5;
-    time.u_hour = 1;
-    time.d_hour = 1;
-    time.f24_or_12 = 1; //0 -> 24, 1->12
-    time.fam_or_pm = 0; //0 -> am, 1->pm
-    */
 
 
-    ///////////////////////////////parametros para escribir en memoria////////////////////////////////////////////////////////
-//    w_mem.subaddress = 0x00;			 //variable para la direccion a escribir
-//    w_mem.data_size = 2;				 //variable de cantidad de datos a escribir
-//    w_mem.data_buffer[0] = 1;			 //son el contenido del arreglo en el buffer
-//    w_mem.data_buffer[1] = 'a';          //son el contenido del arreglo en el buffer
-//    w_mem.handle = &g_m_handle;
-
-
-//    ///////////////////////////////parametros para leer en memoria////////////////////////////////////////////////////////
-//    r_mem.slaveAddress = 0x50;
-//    r_mem.subaddress = 0x00;
-//    r_mem.data_size = 2;
-//    r_mem.handle = &g_m_handle;
+//  date.d_day = 1;
+//	date.u_day = 3;
+//	date.d_month = 1;
+//	date.u_month = 1;
+//	date.years = 0;
 //
-//
-//    ///////////////////////////////parametros para leer la fecha en el reloj////////////////////////////////////////////////////////
-//    r_date.slaveAddress = 0x51;
-//    r_date.subaddress = 0x05;			 //variable para la direccion a escribir
-//    r_date.data_size = 2;				 //variable de cantidad de datos a escribir
-//    r_date.handle = &g_m_handle;
-//
-//    ///////////////////////////////parametros para establecer hora ////////////////////////////////////////////////////////
-//    w_time.slaveAddress = 0x51;
-//    w_time.subaddress = 0x02;			 //variable para la direccion a escribir
-//    w_time.data_size = 3;				 //variable de cantidad de datos a escribir
-//    w_time.data_buffer[0] = 0b01011001;			 //son el contenido del arreglo en el buffer
-//    w_time.data_buffer[1] = 0b01011001;
-//    w_time.data_buffer[2] = 0b01011001;
-//    w_time.handle = &g_m_handle;
-//
-//    f_time.slaveAddress = 0x51;
-//    f_time.subaddress = 0x04;			 //variable para la direccion a escribir
-//    f_time.data_size = 1;				 //variable de cantidad de datos a escribir
-//    f_time.data_buffer[0] = 0b11000011;			 //son el contenido del arreglo en el buffer
-//    f_time.handle = &g_m_handle;
-//
-//    w_date.slaveAddress = 0x51;
-//    w_date.subaddress = 0x05;			 //variable para la direccion a escribir
-//    w_date.data_size = 2;				 //variable de cantidad de datos a escribir
-//    w_date.data_buffer[0] = 0b00010001;			 //son el contenido del arreglo en el buffer
-//    w_date.data_buffer[1] = 0b00010001;
-//    w_date.handle = &g_m_handle;
+//	time.u_seconds = 5;
+//	time.d_seconds = 2;
+//	time.u_minutes = 5;
+//	time.d_minutes = 5;
+//	time.u_hour = 1;
+//	time.d_hour = 1;
+//	time.f24_or_12 = 1; //0 -> 24, 1->12
+//	time.fam_or_pm = 0; //0 -> am, 1->pm
 
 	CLOCK_EnableClock(kCLOCK_PortB);
 	CLOCK_EnableClock(kCLOCK_I2c0);
@@ -469,23 +386,8 @@ void i2c_init_peripherals(void)
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle, i2c_master_callback,
 			NULL);
 
-//	xTaskCreate(write_mem, "write_mem", configMINIMAL_STACK_SIZE,
-//			(void *) &w_mem, configMAX_PRIORITIES - 1, NULL);
-
-	//xTaskCreate(read_mem,  "read_mem" , 150, (void *) &r_mem, 3, NULL);
-
 	xTaskCreate(init_clk, "init_clk", configMINIMAL_STACK_SIZE, (void *) 0,
 			configMAX_PRIORITIES, NULL);
-
-	xTaskCreate(read_time,  "read_time" , configMINIMAL_STACK_SIZE, (void *) 0, configMAX_PRIORITIES, NULL);
-
-	//xTaskCreate(read_date,  "read_date" , 250, (void *) &r_date, 4, NULL);
-
-	//xTaskCreate(write_time, "write_time", 250, (void *) &w_time, 4, NULL);
-
-	//xTaskCreate(format_of_hour, "format_of_hour", 150, (void *) &w_mem, 4, NULL);
-
-	//xTaskCreate(write_date, "write_date", 250, (void *) &w_date, 4, NULL);
 
     NVIC_EnableIRQ(I2C0_IRQn);
     NVIC_SetPriority(I2C0_IRQn, 5);
@@ -493,28 +395,6 @@ void i2c_init_peripherals(void)
 	transfer_i2c_semaphore = xSemaphoreCreateBinary();
 	i2c_events_g = xEventGroupCreate();
 	mutex_transfer_i2c = xSemaphoreCreateMutex();
-	time_mailbox = xQueueCreate(1, sizeof(uint8_t *));
-
-}
-/**void digiToAscii(uint8_t var)
-{
-	if(var >= 10 && var <= 99)
-	{
-		b = (var / 10);
-		a = ((var % 10));
-	}
-
-	if(var >= 0 && var <= 9)
-	{
-
-		a = var;
-	}
-}
-*/
-
-EventGroupHandle_t get_i2c_event(void)
-{
-
-	return i2c_events_g;
+	time_mailbox = xQueueCreate(1, (3*sizeof(uint8_t)));
 
 }

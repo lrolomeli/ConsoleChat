@@ -7,7 +7,7 @@
 #include "terminal.h"
 #include "menu.h"
 #include "time_memory_func.h"
-#include "LCDNokia5110.h"
+#include "lcd_func.h"
 
 #define MAIN_MENU 0
 #define MENU_SIZE (sizeof(terminal_menu) - 1)
@@ -21,17 +21,18 @@
 
 typedef struct state {
 
-	uint8_t (*ptr)(UART_Type *, uart_handle_t *, EventGroupHandle_t, QueueHandle_t); /**pointer to function*/
+	uint8_t (*ptr)(UART_Type *, uart_handle_t *, EventGroupHandle_t, QueueHandle_t, QueueHandle_t); /**pointer to function*/
 
 } State;
 
 //uint8_t validation_menu(uint8_t * variable, uint8_t length);
 //uint8_t validation_address(uint8_t * variable, uint8_t length);
-uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue);
-uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue);
-uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue);
-uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue);
-uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue);
+uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
+uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
+uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
+uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
+uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
+uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
 uint8_t * check_hour(uart_transfer_t hour);
 
 static const State menu_state[10] = { {&main_menu},
@@ -42,7 +43,7 @@ static const State menu_state[10] = { {&main_menu},
 		{&menu_one},
 		{&menu_six},
 		{&menu_one},
-		{&menu_one},
+		{&menu_eight},
 		{&menu_one} };
 
 static uint8_t terminal_menu[] =
@@ -70,18 +71,20 @@ static uint8_t msg2_menu3[] =
 static uint8_t msg1_menu6[] =
 				"\r\nHora Actual...\r\n";
 
+static uint8_t first_line[] = "Welcome to";
+static uint8_t second_line[] = "Practica 1";
+
 void print_time_lcd_task(void * pvParameters)
 {
-	static uint8_t buffer[3] = {0};
-	static uint8_t time[8];
+	uint8_t buffer[3] = {0};
+	uint8_t time[8];
 
+	printline(Normal_print, first_line, first_row);
+	printline(Inverse_print, second_line, second_row);
 	for(;;)
 	{
+		xQueueReceive(get_time_mailbox(), buffer, portMAX_DELAY);
 
-		xQueueReceive(get_time_mailbox(), buffer, 0);
-
-
-		//time[8] = '\r';
 		time[7] = (buffer[0] & 0x0F) + '0';
 		time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
 		time[5] = ':';
@@ -92,7 +95,7 @@ void print_time_lcd_task(void * pvParameters)
 		time[0] = ((buffer[2] & 0x30) >> 4) + '0';
 
 		printline(Normal_print, time, sixth_row);
-		xEventGroupWaitBits(get_lcd_term_event(), PRINT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
+
 	}
 
 }
@@ -101,8 +104,8 @@ void print_time_task(void * pvParameters)
 
 	terminal_type * uart_param = (terminal_type *) pvParameters;
 	uint8_t msg = 0;
-	static uint8_t buffer[3] = {0};
-	static uint8_t time[9];
+	uint8_t buffer[3] = {0};
+	uint8_t time[9];
 
 	xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
 
@@ -117,9 +120,7 @@ void print_time_task(void * pvParameters)
 			msg = 0;
 		}
 
-
-		xQueueReceive(get_time_mailbox(), buffer, 0);
-
+		xQueueReceive(uart_param->queue2, buffer, portMAX_DELAY);
 
 		time[8] = '\r';
 		time[7] = (buffer[0] & 0x0F) + '0';
@@ -132,7 +133,8 @@ void print_time_task(void * pvParameters)
 		time[0] = ((buffer[2] & 0x30) >> 4) + '0';
 
 		print(uart_param->xuart, &(uart_param->uart_handle), uart_param->event_group, time, 9 * sizeof(uint8_t));
-		xEventGroupWaitBits(uart_param->event_group, PRINT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
+
+
 	}
 
 }
@@ -142,12 +144,17 @@ void main_menu_task(void * pvParameters)
 	terminal_type * uart_param = (terminal_type *) pvParameters;
 	static uint8_t menu = 0;
 
+	xTaskCreate(print_time_task, "print_time_task_terminal",
+	300, pvParameters,
+	configMAX_PRIORITIES - 2, NULL);
+
+
 	for(;;)
 	{
 
 		menu = menu_state[menu].ptr(uart_param->xuart,
 		        &(uart_param->uart_handle), uart_param->event_group,
-		        uart_param->queue);
+		        uart_param->queue, uart_param->foreign_queue);
 
 	}
 
@@ -159,7 +166,7 @@ void main_menu_task(void * pvParameters)
  *	y espera respuesta por parte del usuario
  *
  ******************************************************************************/
-uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue)
+uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
 {
 
 	uint8_t menu = 0;
@@ -190,7 +197,7 @@ uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandl
  *	se despliega otro mensaje en el cual se pedira la longitud en bytes que queremos leer
  *
  ******************************************************************************/
-uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue)
+uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
 {
 	int16_t subaddress = -1;
 	uint16_t byte_length = 0;
@@ -224,7 +231,7 @@ uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle
  *	se despliega otro mensaje en el cual se pedira el mensaje que queremos escribir
  *
  ******************************************************************************/
-uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue)
+uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
 {
 	int16_t subaddress = -1;
 	uart_transfer_t text_to_send = {NULL, 0};
@@ -254,7 +261,7 @@ uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle
  *	se valida lo que el usuario introdujo y se regresa un mensaje de comprobacion
  *
  ******************************************************************************/
-uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue)
+uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
 {
 	uart_transfer_t hour = {NULL, 0};
 	uint8_t * time;
@@ -289,7 +296,7 @@ uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHand
  *	Esta rutina desplegara un mensaje indicando la hora actual
  *
  ******************************************************************************/
-uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue)
+uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
 {
 	static uint8_t buffer = 1;
 
@@ -305,6 +312,27 @@ uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle
 
 }
 
+uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue)
+{
+
+	uart_transfer_t received = {NULL, 0};
+	uart_transfer_t sent = {NULL, 0};
+
+	do{
+
+		xQueueReceive(queue, &received, 0);
+		if(received.data != NULL)
+		{
+			print(xuart, uart_handle, event_group, received.data, received.dataSize);
+		}
+		sent = read_from_keyboard2(xuart, uart_handle, event_group);
+		xQueueSendToBack(foreign_queue, &sent, 0);
+
+	}while(NULL != sent.data);
+
+	return MAIN_MENU;
+
+}
 
 
 uint8_t * check_hour(uart_transfer_t hour)

@@ -29,7 +29,6 @@
 
 
 void i2c_init_peripherals(void);
-EventGroupHandle_t get_i2c_event(void);
 QueueHandle_t get_time_mailbox(void);
 void write_mem(int16_t subaddress, uint8_t buffer[], uint8_t dataSize);
 uint8_t * read_mem(int16_t subaddress, uint16_t dataSize);

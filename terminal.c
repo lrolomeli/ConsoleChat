@@ -242,9 +242,13 @@ uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_hand
     		/* Fills the transmission buffer. */
     		g_txBuffer = g_rxBuffer;
 
-    		if('\r' == g_rxBuffer)
-    		{
 
+    		if('\e' == g_rxBuffer)
+    		{
+    			returnXfer.data = NULL;
+    			returnXfer.dataSize = 0;
+    			return returnXfer;
+    			//xQueueSendToBack(cola, &buffer, portMAX_DELAY);
     		}
     		else if ('\b' == g_txBuffer)
     		{
@@ -334,6 +338,7 @@ uint16_t read_from_keyboard3(UART_Type * xuart, uart_handle_t * uart_handle, Eve
 
 	}
 	g_txBuffer = 0;
+
 	for(index = times; index; index--)
 	{
 		length_bytes += numbytes[index-1] * (multiplier);

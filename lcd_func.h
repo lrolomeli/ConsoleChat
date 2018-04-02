@@ -8,7 +8,6 @@
 #include "event_groups.h"
 #include "queue.h"
 
-EventGroupHandle_t get_lcd_term_event(void);
 void lcd_spi_pins_init(void);
 
 

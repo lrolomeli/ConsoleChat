@@ -145,8 +145,8 @@ void config_lcd_spi_pins(void)
 	PORT_SetPinMux(PORTD, LCD_DIN_PIN, kPORT_MuxAlt2);
 
 	DSPI_MasterGetDefaultConfig(&masterConfig);
-	//masterConfig.ctarConfig.cpol = kDSPI_ClockPolarityActiveLow;
-	//masterConfig.ctarConfig.cpha = kDSPI_ClockPhaseSecondEdge;
+//	masterConfig.ctarConfig.cpol = kDSPI_ClockPolarityActiveLow;
+//	masterConfig.ctarConfig.cpha = kDSPI_ClockPhaseSecondEdge;
 
 	DSPI_MasterInit(LCD_DSPI_MASTER_BASEADDR, &masterConfig,
 			CLOCK_GetFreq(DSPI0_CLK_SRC));
@@ -186,8 +186,6 @@ void LCDNokia_writeByte(uint8_t DataOrCmd, uint8_t data)
 	else
 		GPIO_ClearPinsOutput(GPIOD, 1 << LCD_DC_PIN);
 
-	DSPI_StartTransfer(LCD_DSPI_MASTER_BASEADDR);
-
 	/* Start master transfer, send data to slave */
 	masterXfer.txData = &data;
 	masterXfer.rxData = NULL;
@@ -195,6 +193,7 @@ void LCDNokia_writeByte(uint8_t DataOrCmd, uint8_t data)
 	masterXfer.configFlags = kDSPI_MasterCtar0
 			| kDSPI_MasterPcs0 | kDSPI_MasterPcsContinuous;
 	
+	DSPI_StartTransfer(LCD_DSPI_MASTER_BASEADDR);
 	DSPI_MasterTransferNonBlocking(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			&masterXfer);
 

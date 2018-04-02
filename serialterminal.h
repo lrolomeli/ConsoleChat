@@ -13,8 +13,7 @@
 #include "semphr.h"
 #include "event_groups.h"
 
-EventGroupHandle_t get_serialterm_event(void);
-
+QueueHandle_t get_serial_time_queue(void);
 void serial_terminal_init(void);
 
 

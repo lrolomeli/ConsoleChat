@@ -15,6 +15,8 @@
 #include "menu.h"
 
 static EventGroupHandle_t serialterm_events_g;
+static QueueHandle_t serial_term_queue;
+static QueueHandle_t serial_time_queue;
 
 /*******************************************************************************
  * CALLBACK
@@ -79,21 +81,19 @@ void serial_terminal_init(void)
 
     serialterm_events_g = xEventGroupCreate();
     serialterm.event_group = serialterm_events_g;
-    serialterm.queue = xQueueCreate(1, sizeof(uint8_t));
+    serial_term_queue = xQueueCreate(1, sizeof(uint8_t));
+    serialterm.queue = serial_term_queue;
+    serial_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
+    serialterm.queue2 = serial_time_queue;
+    serialterm.foreign_queue = get_bt_time_queue();
 
 	xTaskCreate(main_menu_task, "terminal_select_menu",
-			500, (void *) &serialterm,
-			configMAX_PRIORITIES-4, NULL);
-
-	xTaskCreate(print_time_task, "print_time_task_terminal",
-	200, (void *) &serialterm,
-	configMAX_PRIORITIES -4, NULL);
+			400, (void *) &serialterm,
+			configMAX_PRIORITIES-1, NULL);
 
 }
 
-EventGroupHandle_t get_serialterm_event(void)
+QueueHandle_t get_serial_time_queue(void)
 {
-
-	return serialterm_events_g;
-
+	return serial_time_queue;
 }

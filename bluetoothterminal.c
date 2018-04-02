@@ -15,6 +15,8 @@
 #include "menu.h"
 
 static EventGroupHandle_t bluetoothterm_events_g;
+static QueueHandle_t bt_term_queue;
+static QueueHandle_t bt_time_queue;
 
 /*******************************************************************************
  * CALLBACK
@@ -83,22 +85,20 @@ void bt_terminal_init(void)
 
 	bluetoothterm_events_g = xEventGroupCreate();
 	bluetooth.event_group = bluetoothterm_events_g;
-	bluetooth.queue = xQueueCreate(1, sizeof(uint8_t));
+	bt_term_queue = xQueueCreate(1, sizeof(uint8_t));
+	bluetooth.queue = bt_term_queue;
+	bt_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
+	bluetooth.queue2 = bt_time_queue;
+	bluetooth.foreign_queue = get_serial_time_queue();
 
 	xTaskCreate(main_menu_task, "bluetooth_select_menu",
-	500, (void *) &bluetooth,
-	configMAX_PRIORITIES - 4, NULL);
-
-	xTaskCreate(print_time_task, "print_time_task_bluetooth",
-	200, (void *) &bluetooth,
-	configMAX_PRIORITIES -4, NULL);
+	400, (void *) &bluetooth,
+	configMAX_PRIORITIES - 2, NULL);
 
 }
 
-EventGroupHandle_t get_bluetoothterm_event(void)
+QueueHandle_t get_bt_time_queue(void)
 {
-
-	return bluetoothterm_events_g;
-
+	return bt_time_queue;
 }
 

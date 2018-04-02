@@ -23,6 +23,8 @@ typedef struct {
 	uart_handle_t uart_handle;
 	EventGroupHandle_t event_group;
 	QueueHandle_t queue;
+	QueueHandle_t foreign_queue;
+	QueueHandle_t queue2;
 
 } terminal_type;
 
