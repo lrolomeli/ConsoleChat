@@ -5,6 +5,7 @@
  *      Author: lrolo
  */
 #include "bluetoothterminal.h"
+#include "serialterminal.h"
 #include "terminal.h"
 #include "board.h"
 #include "fsl_uart.h"
@@ -17,6 +18,7 @@
 static EventGroupHandle_t bluetoothterm_events_g;
 static QueueHandle_t bt_term_queue;
 static QueueHandle_t bt_time_queue;
+static QueueHandle_t bt_msg_queue;
 
 /*******************************************************************************
  * CALLBACK
@@ -41,6 +43,19 @@ void UART_UserCallback_bt(UART_Type *base, uart_handle_t *handle, status_t statu
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
+void create_bluetooth_queue(void * pvParameters)
+{
+
+	terminal_type * uart_param = (terminal_type *) pvParameters;
+
+	uart_param->foreign_queue = get_serial_msg_queue();
+
+	xTaskCreate(main_menu_task, "bluetooth_select_menu",
+	400, pvParameters,
+	configMAX_PRIORITIES - 1, NULL);
+
+	vTaskDelete(NULL);
+}
 
 void bt_terminal_init(void)
 {
@@ -85,20 +100,26 @@ void bt_terminal_init(void)
 
 	bluetoothterm_events_g = xEventGroupCreate();
 	bluetooth.event_group = bluetoothterm_events_g;
+
 	bt_term_queue = xQueueCreate(1, sizeof(uint8_t));
 	bluetooth.queue = bt_term_queue;
 	bt_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
 	bluetooth.queue2 = bt_time_queue;
-	bluetooth.foreign_queue = get_serial_time_queue();
+	bt_msg_queue = xQueueCreate(1, (sizeof(uart_transfer_t)));
 
-	xTaskCreate(main_menu_task, "bluetooth_select_menu",
-	400, (void *) &bluetooth,
-	configMAX_PRIORITIES - 2, NULL);
+	xTaskCreate(create_bluetooth_queue, "bluetooth_queue_ready",
+	configMINIMAL_STACK_SIZE, (void *) &bluetooth,
+	configMAX_PRIORITIES - 1, NULL);
 
+
+}
+
+QueueHandle_t get_bt_msg_queue(void)
+{
+	return bt_msg_queue;
 }
 
 QueueHandle_t get_bt_time_queue(void)
 {
 	return bt_time_queue;
 }
-

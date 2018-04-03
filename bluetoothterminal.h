@@ -12,6 +12,7 @@
 #include "task.h"
 #include "semphr.h"
 #include "event_groups.h"
+QueueHandle_t get_bt_msg_queue(void);
 QueueHandle_t get_bt_time_queue(void);
 void bt_terminal_init(void);
 

@@ -25,8 +25,6 @@ typedef struct state {
 
 } State;
 
-//uint8_t validation_menu(uint8_t * variable, uint8_t length);
-//uint8_t validation_address(uint8_t * variable, uint8_t length);
 uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
 uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
 uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t event_group, QueueHandle_t queue, QueueHandle_t foreign_queue);
@@ -43,7 +41,7 @@ static const State menu_state[10] = { {&main_menu},
 		{&menu_one},
 		{&menu_six},
 		{&menu_one},
-		{&menu_eight},
+		{&menu_one},
 		{&menu_one} };
 
 static uint8_t terminal_menu[] =
@@ -71,20 +69,16 @@ static uint8_t msg2_menu3[] =
 static uint8_t msg1_menu6[] =
 				"\r\nHora Actual...\r\n";
 
-static uint8_t first_line[] = "Welcome to";
-static uint8_t second_line[] = "Practica 1";
-
 void print_time_lcd_task(void * pvParameters)
 {
 	uint8_t buffer[3] = {0};
-	uint8_t time[8];
+	uint8_t time[9];
 
-	printline(Normal_print, first_line, first_row);
-	printline(Inverse_print, second_line, second_row);
 	for(;;)
 	{
 		xQueueReceive(get_time_mailbox(), buffer, portMAX_DELAY);
 
+		time[8] = 0;
 		time[7] = (buffer[0] & 0x0F) + '0';
 		time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
 		time[5] = ':';
@@ -105,7 +99,7 @@ void print_time_task(void * pvParameters)
 	terminal_type * uart_param = (terminal_type *) pvParameters;
 	uint8_t msg = 0;
 	uint8_t buffer[3] = {0};
-	uint8_t time[9];
+	uint8_t time[9] = {0};
 
 	xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
 
@@ -116,8 +110,8 @@ void print_time_task(void * pvParameters)
 
 		if(msg)
 		{
-			xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
 			msg = 0;
+			xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
 		}
 
 		xQueueReceive(uart_param->queue2, buffer, portMAX_DELAY);
@@ -145,8 +139,8 @@ void main_menu_task(void * pvParameters)
 	static uint8_t menu = 0;
 
 	xTaskCreate(print_time_task, "print_time_task_terminal",
-	300, pvParameters,
-	configMAX_PRIORITIES - 2, NULL);
+	configMINIMAL_STACK_SIZE, pvParameters,
+	configMAX_PRIORITIES - 1, NULL);
 
 
 	for(;;)
@@ -319,7 +313,6 @@ uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHand
 	uart_transfer_t sent = {NULL, 0};
 
 	do{
-
 		xQueueReceive(queue, &received, 0);
 		if(received.data != NULL)
 		{

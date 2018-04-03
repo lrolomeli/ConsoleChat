@@ -23,8 +23,8 @@ typedef struct {
 	uart_handle_t uart_handle;
 	EventGroupHandle_t event_group;
 	QueueHandle_t queue;
-	QueueHandle_t foreign_queue;
 	QueueHandle_t queue2;
+	QueueHandle_t foreign_queue;
 
 } terminal_type;
 
@@ -44,6 +44,7 @@ int16_t read_from_keyboard1(UART_Type * xuart, uart_handle_t * uart_handle, Even
 uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 uint16_t read_from_keyboard3(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
 void wait_for_esc(UART_Type * xuart, uart_handle_t * uart_handle, EventGroupHandle_t event_group);
+
 uint8_t validate_number(uint8_t keyboard_data);
 int8_t validatation_number(uint8_t keyboard_data);
 int8_t validation_address(uint8_t keyboard_data);

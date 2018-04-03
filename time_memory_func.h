@@ -30,9 +30,9 @@
 
 void i2c_init_peripherals(void);
 QueueHandle_t get_time_mailbox(void);
+
 void write_mem(int16_t subaddress, uint8_t buffer[], uint8_t dataSize);
 uint8_t * read_mem(int16_t subaddress, uint16_t dataSize);
-
 void write_time(uint8_t buffer[]);
 
 #endif /* TIME_MEMORY_FUNC_H_ */

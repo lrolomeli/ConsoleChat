@@ -46,10 +46,10 @@
 /*******************************************************************************
  * Structures
  ******************************************************************************/
+
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-
 
 /*******************************************************************************
  * Prototypes
@@ -77,11 +77,6 @@ void print(UART_Type * xuart, uart_handle_t* uart_handle, EventGroupHandle_t eve
 	portMAX_DELAY);
 
 }
-
-/*******************************************************************************
- * TASKS CODE
- ******************************************************************************/
-
 
 /*******************************************************************************
  * TASKS CODE
@@ -242,13 +237,15 @@ uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_hand
     		/* Fills the transmission buffer. */
     		g_txBuffer = g_rxBuffer;
 
+    		if('\r' == g_rxBuffer)
+    		{
 
-    		if('\e' == g_rxBuffer)
+    		}
+    		else if('\e' == g_rxBuffer)
     		{
     			returnXfer.data = NULL;
     			returnXfer.dataSize = 0;
     			return returnXfer;
-    			//xQueueSendToBack(cola, &buffer, portMAX_DELAY);
     		}
     		else if ('\b' == g_txBuffer)
     		{
@@ -322,7 +319,7 @@ uint16_t read_from_keyboard3(UART_Type * xuart, uart_handle_t * uart_handle, Eve
 		/* Fills the transmission buffer. */
 		g_txBuffer = g_rxBuffer;
 
-		if (-1 != validatation_number(g_txBuffer) && 5 > times)
+		if (-1 != validatation_number(g_txBuffer) && 2 > times)
 		{
 
 			/* Prepares to send it. Then again only 1 task should be able to use this resource at the time. */

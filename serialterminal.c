@@ -5,6 +5,7 @@
  *      Author: lrolo
  */
 #include "serialterminal.h"
+#include "bluetoothterminal.h"
 #include "terminal.h"
 #include "board.h"
 #include "fsl_uart.h"
@@ -17,6 +18,7 @@
 static EventGroupHandle_t serialterm_events_g;
 static QueueHandle_t serial_term_queue;
 static QueueHandle_t serial_time_queue;
+static QueueHandle_t serial_msg_queue;
 
 /*******************************************************************************
  * CALLBACK
@@ -39,6 +41,20 @@ void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t stat
     	xEventGroupSetBitsFromISR(serialterm_events_g, EVENT_RX, &xHigherPriorityTaskWoken);
     }
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
+
+void create_serial_queue(void * pvParameters)
+{
+
+	terminal_type * uart_param = (terminal_type *) pvParameters;
+
+	uart_param->foreign_queue = get_bt_msg_queue();
+
+	xTaskCreate(main_menu_task, "terminal_select_menu",
+			400, pvParameters,
+			configMAX_PRIORITIES - 1, NULL);
+
+	vTaskDelete(NULL);
 }
 
 void serial_terminal_init(void)
@@ -77,20 +93,28 @@ void serial_terminal_init(void)
 	 ******************************************************************************/
 
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
-    NVIC_SetPriority(UART0_RX_TX_IRQn, 5);
+    NVIC_SetPriority(UART0_RX_TX_IRQn, 6);
 
     serialterm_events_g = xEventGroupCreate();
     serialterm.event_group = serialterm_events_g;
+
     serial_term_queue = xQueueCreate(1, sizeof(uint8_t));
     serialterm.queue = serial_term_queue;
     serial_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
     serialterm.queue2 = serial_time_queue;
-    serialterm.foreign_queue = get_bt_time_queue();
+    serial_msg_queue = xQueueCreate(1, (sizeof(uart_transfer_t)));
 
-	xTaskCreate(main_menu_task, "terminal_select_menu",
-			400, (void *) &serialterm,
-			configMAX_PRIORITIES-1, NULL);
+	xTaskCreate(create_serial_queue, "serial_queue_ready",
+	configMINIMAL_STACK_SIZE, (void *) &serialterm,
+	configMAX_PRIORITIES - 1, NULL);
 
+
+
+}
+
+QueueHandle_t get_serial_msg_queue(void)
+{
+	return serial_msg_queue;
 }
 
 QueueHandle_t get_serial_time_queue(void)
