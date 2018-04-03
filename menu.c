@@ -72,13 +72,16 @@ static uint8_t msg1_menu6[] =
 void print_time_lcd_task(void * pvParameters)
 {
 	uint8_t buffer[3] = {0};
-	uint8_t time[9];
+	uint8_t time[10];
+	static uint8_t welcome_msg1[] = "Bluetooth Chat";
 
 	for(;;)
 	{
+		printline(Inverse_print, welcome_msg1, first_row);
 		xQueueReceive(get_time_mailbox(), buffer, portMAX_DELAY);
 
-		time[8] = 0;
+		time[9] = 0;
+		time[8] = ' ';
 		time[7] = (buffer[0] & 0x0F) + '0';
 		time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
 		time[5] = ':';
@@ -88,6 +91,7 @@ void print_time_lcd_task(void * pvParameters)
 		time[1] = (buffer[2] & 0x0F) + '0';
 		time[0] = ((buffer[2] & 0x30) >> 4) + '0';
 
+		LCDNokia_clear();
 		printline(Normal_print, time, sixth_row);
 
 	}
@@ -97,25 +101,15 @@ void print_time_task(void * pvParameters)
 {
 
 	terminal_type * uart_param = (terminal_type *) pvParameters;
-	uint8_t msg = 0;
-	uint8_t buffer[3] = {0};
-	uint8_t time[9] = {0};
+	static uint8_t msg = 0;
+	static uint8_t buffer[3] = {0};
+	static uint8_t time[9] = {0};
 
 	xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
 
 	for(;;)
 	{
-
-		xQueueReceive(uart_param->queue, &msg, 0);
-
-		if(msg)
-		{
-			msg = 0;
-			xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
-		}
-
 		xQueueReceive(uart_param->queue2, buffer, portMAX_DELAY);
-
 		time[8] = '\r';
 		time[7] = (buffer[0] & 0x0F) + '0';
 		time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
@@ -125,13 +119,19 @@ void print_time_task(void * pvParameters)
 		time[2] = ':';
 		time[1] = (buffer[2] & 0x0F) + '0';
 		time[0] = ((buffer[2] & 0x30) >> 4) + '0';
-
-		print(uart_param->xuart, &(uart_param->uart_handle), uart_param->event_group, time, 9 * sizeof(uint8_t));
-
-
+		xQueueReceive(uart_param->queue, &msg, 0);
+		if(msg)
+		{
+			msg = 0;
+			xEventGroupWaitBits(uart_param->event_group, EXIT_TIME, pdTRUE, pdTRUE, portMAX_DELAY);
+		}
+		else
+		{
+			print(uart_param->xuart, &(uart_param->uart_handle), uart_param->event_group, time, 9 * sizeof(uint8_t));
+		}
 	}
-
 }
+
 void main_menu_task(void * pvParameters)
 {
 

@@ -51,7 +51,7 @@ void create_bluetooth_queue(void * pvParameters)
 	uart_param->foreign_queue = get_serial_msg_queue();
 
 	xTaskCreate(main_menu_task, "bluetooth_select_menu",
-	400, pvParameters,
+	configMINIMAL_STACK_SIZE, pvParameters,
 	configMAX_PRIORITIES - 1, NULL);
 
 	vTaskDelete(NULL);

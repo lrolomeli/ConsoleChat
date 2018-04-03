@@ -51,7 +51,7 @@ void create_serial_queue(void * pvParameters)
 	uart_param->foreign_queue = get_bt_msg_queue();
 
 	xTaskCreate(main_menu_task, "terminal_select_menu",
-			400, pvParameters,
+			configMINIMAL_STACK_SIZE, pvParameters,
 			configMAX_PRIORITIES - 1, NULL);
 
 	vTaskDelete(NULL);
