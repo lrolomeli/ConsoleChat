@@ -25,6 +25,7 @@ typedef struct {
 	QueueHandle_t queue;
 	QueueHandle_t queue2;
 	QueueHandle_t foreign_queue;
+	QueueHandle_t actual_queue;
 
 } terminal_type;
 

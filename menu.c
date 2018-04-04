@@ -17,33 +17,36 @@
 #define MSG1MENU3 (sizeof(msg1_menu3) - 1)
 #define MSG2MENU3 (sizeof(msg2_menu3) - 1)
 #define MSG1MENU6 (sizeof(msg1_menu6) - 1)
-
+#define MSGSIZEDISC (sizeof(disconnect_msg) - 1)
+#define MSGSIZECON (sizeof(connection_msg) - 1)
+#define ENTERSIZE (sizeof(enter) - 1)
+#define YOUSIZE (sizeof(you) - 1)
 
 typedef struct state {
 	 /**pointer to function*/
 	uint8_t (*ptr)(UART_Type *, uart_handle_t *, EventGroupHandle_t,
-			QueueHandle_t, QueueHandle_t);
+			QueueHandle_t, QueueHandle_t, QueueHandle_t);
 
 } State;
 
 uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue);
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t * check_hour(uart_transfer_t hour);
 
 static const State menu_state[10] = { 	{ &main_menu },
@@ -58,24 +61,32 @@ static const State menu_state[10] = { 	{ &main_menu },
 										{ &menu_one } };
 
 static uint8_t terminal_menu[] =
-		"\r\n(1) Leer Memoria I2C\r\n(2) Escribir Memoria I2C"
-				"\r\n(3) Establecer Hora\r\n(4) Establecer Fecha"
-				"\r\n(5) Formato de Hora\r\n(6) Leer Hora"
-				"\r\n(7) Leer Fecha\r\n(8) Comunicacion con terminal 2"
-				"\r\n(9) Eco en LCD\r\n";
+		"\r\n(1) Read EEPROM I2C\r\n(2) Write EEPROM I2C"
+				"\r\n(3) Set Hour\r\n(4) Set Date"
+				"\r\n(5) Hour Format\r\n(6) Show Current Hour"
+				"\r\n(7) Show Date\r\n(8) Terminal Communication"
+				"\r\n(9) LCD echo\r\n";
 
 static uint8_t msg1_menu1[] =
-		"\r\nSolo valores en hexadecimal entre 0 y 7FFF\r\nDireccion de memoria:\r\n0x";
+		"\r\nOnly HEX values beetween 0 and 7FFF\r\nEEPROM memory address:\r\n0x";
 
-static uint8_t msg2_menu1[] = "\r\nTexto a guardar:\r\n";
+static uint8_t msg2_menu1[] = "\r\nType text to Store:\r\n";
 
-static uint8_t msg3_menu1[] = "\r\nLongitud en bytes:\r\n";
+static uint8_t msg3_menu1[] = "\r\nBytes length (MAX 99):\r\n";
 
-static uint8_t msg1_menu3[] = "\r\nEscribir hora en hh/mm/ss: ";
+static uint8_t msg1_menu3[] = "\r\nType hour in hh/mm/ss: ";
 
-static uint8_t msg2_menu3[] = "\r\nLa hora fue modificada... ";
+static uint8_t msg2_menu3[] = "\r\nHour has been modified... ";
 
-static uint8_t msg1_menu6[] = "\r\nHora Actual...\r\n";
+static uint8_t msg1_menu6[] = "\r\nCurrent Hour...\r\n";
+
+static uint8_t disconnect_msg[] = "\r\nThe other person has left the conversation\r\n";
+
+static uint8_t connection_msg[] = "\r\nYou have enter the room\r\n";
+
+static uint8_t enter[] = "\r\nTerminal says: ";
+
+static uint8_t you[] = "\r\n";
 
 void print_time_lcd_task(void * pvParameters)
 {
@@ -150,10 +161,13 @@ void communication_task(void * pvParameters)
 
 	for (;;)
 	{
-		xQueueReceive(uart_param->queue, &received, portMAX_DELAY);
-
+		xQueueReceive(uart_param->actual_queue, &received, portMAX_DELAY);
+		print(uart_param->xuart, &(uart_param->uart_handle),
+				uart_param->event_group, enter, ENTERSIZE);
 		print(uart_param->xuart, &(uart_param->uart_handle),
 				uart_param->event_group, received.data, received.dataSize);
+		print(uart_param->xuart, &(uart_param->uart_handle),
+				uart_param->event_group, you, YOUSIZE);
 	}
 
 }
@@ -177,8 +191,9 @@ void main_menu_task(void * pvParameters)
 	{
 
 		menu = menu_state[menu].ptr(uart_param->xuart,
-				&(uart_param->uart_handle), uart_param->event_group,
-				uart_param->queue, uart_param->foreign_queue);
+		        &(uart_param->uart_handle), uart_param->event_group,
+		        uart_param->queue, uart_param->foreign_queue,
+		        uart_param->actual_queue);
 
 	}
 
@@ -192,7 +207,7 @@ void main_menu_task(void * pvParameters)
  ******************************************************************************/
 uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
 
 	uint8_t menu = 0;
@@ -224,7 +239,7 @@ uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle,
  ******************************************************************************/
 uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
 	int16_t subaddress = -1;
 	uint16_t byte_length = 0;
@@ -260,7 +275,7 @@ uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle,
  ******************************************************************************/
 uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
 	int16_t subaddress = -1;
 	uart_transfer_t text_to_send = {NULL, 0};
@@ -293,7 +308,7 @@ uint8_t menu_two(UART_Type * xuart, uart_handle_t* uart_handle,
  ******************************************************************************/
 uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
 	uart_transfer_t hour = {NULL, 0};
 	uint8_t * time;
@@ -330,7 +345,7 @@ uint8_t menu_three(UART_Type * xuart, uart_handle_t* uart_handle,
  ******************************************************************************/
 uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
 	static uint8_t buffer = 1;
 
@@ -348,20 +363,26 @@ uint8_t menu_six(UART_Type * xuart, uart_handle_t* uart_handle,
 
 uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
-		QueueHandle_t foreign_queue)
+		QueueHandle_t foreign_queue, QueueHandle_t actual_queue)
 {
+	static uart_transfer_t disconnect = { disconnect_msg, MSGSIZEDISC };
 	uart_transfer_t sent = { NULL, 0 };
-
+	print(xuart, (uart_handle), event_group, connection_msg, MSGSIZECON);
 	do
 	{
+
 		sent = read_from_keyboard2(xuart, uart_handle, event_group);
 
 		if (sent.data != NULL)
 		{
+			print(xuart, (uart_handle),
+					event_group, you, YOUSIZE);
 			xQueueSendToBack(foreign_queue, &sent, 0);
 		}
 
 	} while (NULL != sent.data);
+
+	xQueueSendToBack(foreign_queue, &disconnect, 0);
 
 	return MAIN_MENU;
 

@@ -103,12 +103,11 @@ void serial_terminal_init(void)
     serial_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
     serialterm.queue2 = serial_time_queue;
     serial_msg_queue = xQueueCreate(1, (sizeof(uart_transfer_t)));
+    serialterm.actual_queue = serial_msg_queue;
 
 	xTaskCreate(create_serial_queue, "serial_queue_ready",
 	configMINIMAL_STACK_SIZE, (void *) &serialterm,
 	configMAX_PRIORITIES - 1, NULL);
-
-
 
 }
 

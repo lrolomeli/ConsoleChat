@@ -106,12 +106,11 @@ void bt_terminal_init(void)
 	bt_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
 	bluetooth.queue2 = bt_time_queue;
 	bt_msg_queue = xQueueCreate(1, (sizeof(uart_transfer_t)));
+	bluetooth.actual_queue = bt_msg_queue;
 
 	xTaskCreate(create_bluetooth_queue, "bluetooth_queue_ready",
 	configMINIMAL_STACK_SIZE, (void *) &bluetooth,
 	configMAX_PRIORITIES - 1, NULL);
-
-
 }
 
 QueueHandle_t get_bt_msg_queue(void)
