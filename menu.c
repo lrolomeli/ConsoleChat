@@ -161,6 +161,11 @@ void communication_task(void * pvParameters)
 
 	for (;;)
 	{
+		xSemaphoreTake(chat_smaphore,portMAX_DELAY);
+		xQueueReset(uart_param->actual_queue);
+		do
+		{
+
 		xQueueReceive(uart_param->actual_queue, &received, portMAX_DELAY);
 		print(uart_param->xuart, &(uart_param->uart_handle),
 				uart_param->event_group, enter, ENTERSIZE);
@@ -168,6 +173,7 @@ void communication_task(void * pvParameters)
 				uart_param->event_group, received.data, received.dataSize);
 		print(uart_param->xuart, &(uart_param->uart_handle),
 				uart_param->event_group, you, YOUSIZE);
+		}while(xSemaphoreTake(end_char_sempahore,0) == pdTRUE);
 	}
 
 }
@@ -368,6 +374,7 @@ uint8_t menu_eight(UART_Type * xuart, uart_handle_t* uart_handle,
 	static uart_transfer_t disconnect = { disconnect_msg, MSGSIZEDISC };
 	uart_transfer_t sent = { NULL, 0 };
 	print(xuart, (uart_handle), event_group, connection_msg, MSGSIZECON);
+	xSemaphoreGive(chat_smaphore);
 	do
 	{
 
