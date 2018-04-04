@@ -219,7 +219,7 @@ uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_hand
     receiveXfer.data = &g_rxBuffer;
     receiveXfer.dataSize = 1;
 
-    while('\r'!=g_txBuffer)
+    for(;;)
     {
 
 
@@ -239,7 +239,9 @@ uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_hand
 
     		if('\r' == g_rxBuffer)
     		{
-
+    		    returnXfer.data = storing_phrase(buffer_index, buffer);
+    		    returnXfer.dataSize = buffer_index;
+    			return returnXfer;
     		}
     		else if('\e' == g_rxBuffer)
     		{
@@ -276,11 +278,6 @@ uart_transfer_t read_from_keyboard2(UART_Type * xuart, uart_handle_t * uart_hand
     		}
 
     }
-    g_txBuffer = 0;
-    returnXfer.data = storing_phrase(buffer_index, buffer);
-    returnXfer.dataSize = buffer_index;
-
-    return returnXfer;
 
 }
 
