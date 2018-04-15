@@ -2,11 +2,10 @@
  * serialterminal.c
  *
  *  Created on: Mar 28, 2018
- *      Author: lrolo
+ *      Author: Luis Roberto Lomeli Plascencia
  */
 #include "serialterminal.h"
 #include "bluetoothterminal.h"
-#include "terminal.h"
 #include "board.h"
 #include "fsl_uart.h"
 #include "fsl_port.h"
@@ -15,18 +14,19 @@
 #include "clock_config.h"
 #include "menu.h"
 
+/*******************************************************************************
+ * Global OS Variables
+ ******************************************************************************/
 static EventGroupHandle_t serialterm_events_g;
 static QueueHandle_t serial_term_queue;
 static QueueHandle_t serial_time_queue;
 static QueueHandle_t serial_msg_queue;
 
 /*******************************************************************************
- * CALLBACK
+ * SERIAL CALLBACK EITHER SEND OR RECEIVE INTERRUPT
  ******************************************************************************/
 void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t status, void *userData)
 {
-    userData = userData;
-
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
     if (kStatus_UART_TxIdle == status)
@@ -43,7 +43,10 @@ void UART_UserCallback_ter(UART_Type *base, uart_handle_t *handle, status_t stat
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-void create_serial_queue(void * pvParameters)
+/*******************************************************************************
+ * CALL_INIT TASK
+ ******************************************************************************/
+void call_serial_init_task(void * pvParameters)
 {
 
 	terminal_type * uart_param = (terminal_type *) pvParameters;
@@ -57,14 +60,33 @@ void create_serial_queue(void * pvParameters)
 	vTaskDelete(NULL);
 }
 
-void serial_terminal_init(void)
+/*******************************************************************************
+ * RETURNS FINISH ATEMPT QUEUE
+ ******************************************************************************/
+QueueHandle_t get_serial_msg_queue(void)
+{
+	return serial_msg_queue;
+}
+
+/*******************************************************************************
+ * RETURNS THE QUEUE WHERE TIME IS READED
+ ******************************************************************************/
+QueueHandle_t get_serial_time_queue(void)
+{
+	return serial_time_queue;
+}
+
+/*******************************************************************************
+ * INITIALIZE TERMINAL REQUIREMENTS
+ ******************************************************************************/
+void serial_init(void)
 {
 	static uart_config_t config_ter;
 	static terminal_type serialterm;
 
 	serialterm.xuart = UART0;
 	/*******************************************************************************
-	 * GPIO UART CONFIGURATION
+	 * MUX UART CONFIGURATION
 	 ******************************************************************************/
     CLOCK_EnableClock(kCLOCK_PortB);
     CLOCK_EnableClock(kCLOCK_Uart0);
@@ -75,7 +97,6 @@ void serial_terminal_init(void)
 	/*******************************************************************************
 	 * UART TERMINAL CONFIGURATION
 	 ******************************************************************************/
-
     UART_GetDefaultConfig(&config_ter);
     config_ter.enableTx = true;
     config_ter.enableRx = true;
@@ -83,21 +104,25 @@ void serial_terminal_init(void)
 	/*******************************************************************************
 	 * TERMINAL INITIALIZATION AND HANDLER CREATION
 	 ******************************************************************************/
-
     UART_Init(UART0, &config_ter, CLOCK_GetFreq(UART0_CLK_SRC));
 	UART_TransferCreateHandle(UART0, &serialterm.uart_handle, UART_UserCallback_ter,
 			NULL);
 
 	/*******************************************************************************
-	 * INTERRUPT HABILITATION
+	 * SERIAL HABILITATION
 	 ******************************************************************************/
-
     NVIC_EnableIRQ(UART0_RX_TX_IRQn);
     NVIC_SetPriority(UART0_RX_TX_IRQn, 6);
 
+	/*******************************************************************************
+	 * SERIAL EVENTS
+	 ******************************************************************************/
     serialterm_events_g = xEventGroupCreate();
     serialterm.event_group = serialterm_events_g;
 
+	/*******************************************************************************
+	 * SERIAL QUEUES
+	 ******************************************************************************/
     serial_term_queue = xQueueCreate(1, sizeof(uint8_t));
     serialterm.queue = serial_term_queue;
     serial_time_queue = xQueueCreate(1, (3*sizeof(uint8_t)));
@@ -105,18 +130,11 @@ void serial_terminal_init(void)
     serial_msg_queue = xQueueCreate(1, (sizeof(uart_transfer_t)));
     serialterm.actual_queue = serial_msg_queue;
 
-	xTaskCreate(create_serial_queue, "serial_queue_ready",
+	/*******************************************************************************
+	 * CREATE SERIAL TASK
+	 ******************************************************************************/
+	xTaskCreate(call_serial_init_task, "serial_call_init_task",
 	configMINIMAL_STACK_SIZE, (void *) &serialterm,
 	configMAX_PRIORITIES - 1, NULL);
 
-}
-
-QueueHandle_t get_serial_msg_queue(void)
-{
-	return serial_msg_queue;
-}
-
-QueueHandle_t get_serial_time_queue(void)
-{
-	return serial_time_queue;
 }

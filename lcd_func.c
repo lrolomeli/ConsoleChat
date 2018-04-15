@@ -26,8 +26,8 @@ void nokia_lcd_init_task(void * pvParameters)
     GPIO_SetPinsOutput(GPIOD, 1 << LCD_RESET_PIN);
 
 	LCDNokia_init();
-	xTaskCreate(print_time_lcd_task, "lcd_nokia_print_time", configMINIMAL_STACK_SIZE, NULL,
-	configMAX_PRIORITIES - 2, NULL);
+//	xTaskCreate(print_time_lcd_task, "lcd_nokia_print_time", configMINIMAL_STACK_SIZE, NULL,
+//	configMAX_PRIORITIES - 2, NULL);
 
 	vTaskDelete(NULL);
 

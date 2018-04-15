@@ -32,6 +32,7 @@
  * @file    imu_read.c
  * @brief   Application entry point.
  */
+#include <terminal_func.h>
 #include "board.h"
 #include "peripherals.h"
 #include "pin_mux.h"
@@ -43,7 +44,6 @@
 #include "fsl_port.h"
 #include "time_memory_func.h"
 #include "chat_app_main.h"
-#include "terminal.h"
 #include "serialterminal.h"
 #include "bluetoothterminal.h"
 #include "lcd_func.h"

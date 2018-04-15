@@ -15,6 +15,7 @@ uint8_t masterTxData[TRANSFER_SIZE] = {0U};
 
 static dspi_master_handle_t g_m_handle;
 SemaphoreHandle_t transfer_dspi_semaphore;
+SemaphoreHandle_t transfer_dspi_mutex;
 
 static const uint8_t ASCII[][5] =
 {
@@ -155,6 +156,7 @@ void config_lcd_spi_pins(void)
 			DSPI_MasterUserCallback, NULL);
 
 	transfer_dspi_semaphore = xSemaphoreCreateBinary();
+	transfer_dspi_mutex = xSemaphoreCreateMutex();
 }
 
 void LCDNokia_init(void)
@@ -193,13 +195,18 @@ void LCDNokia_writeByte(uint8_t DataOrCmd, uint8_t data)
 	masterXfer.configFlags = kDSPI_MasterCtar0
 			| kDSPI_MasterPcs0 | kDSPI_MasterPcsContinuous;
 	
+	xSemaphoreTake(transfer_dspi_mutex, portMAX_DELAY);
+
 	DSPI_StartTransfer(LCD_DSPI_MASTER_BASEADDR);
+
 	DSPI_MasterTransferNonBlocking(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			&masterXfer);
 
 	xSemaphoreTake(transfer_dspi_semaphore, portMAX_DELAY);
 
 	DSPI_StopTransfer(LCD_DSPI_MASTER_BASEADDR);
+
+	xSemaphoreGive(transfer_dspi_mutex);
 }
 
 void LCDNokia_sendChar(uint8_t character, uint8_t bw) {
@@ -247,14 +254,7 @@ void printline(print_line_type_e NormalOrInverse, uint8_t * string, lcd_row_type
 
     LCDNokia_gotoXY(0, row);
 
-    if (NormalOrInverse)
-    {
-        LCDNokia_sendString(string, 1);
-    }
-    else
-    {
-        LCDNokia_sendString(string, 0);
-    }
+    LCDNokia_sendString(string, NormalOrInverse);
 
 }
 

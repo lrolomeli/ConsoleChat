@@ -21,9 +21,9 @@ int main(void)
 	BOARD_InitBootPeripherals();
 	/* Init FSL debug console. */
 	BOARD_InitDebugConsole();
-
-	bt_terminal_init();
-	serial_terminal_init();
+	//config_buttons();
+	bluetooth_init();
+	serial_init();
 	i2c_init_peripherals();
 	lcd_spi_pins_init();
 

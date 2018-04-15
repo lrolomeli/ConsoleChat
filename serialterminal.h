@@ -8,14 +8,37 @@
 #ifndef SERIALTERMINAL_H_
 #define SERIALTERMINAL_H_
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "event_groups.h"
+#include "terminal_func.h"
 
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Share this queue when a module needs it
+ 	\param[in] none.
+ 	\return QueueHandle_t
+ */
 QueueHandle_t get_serial_msg_queue(void);
+
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Share this queue when a module needs it
+ 	\param[in] none.
+ 	\return QueueHandle_t
+ */
 QueueHandle_t get_serial_time_queue(void);
-void serial_terminal_init(void);
+
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Configure all peripherals needed to use UART SERIAL
+ 	\param[in] none.
+ 	\return void
+ */
+void serial_init(void);
 
 
 #endif /* SERIALTERMINAL_H_ */

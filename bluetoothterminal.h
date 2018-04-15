@@ -8,12 +8,36 @@
 #ifndef BLUETOOTHTERMINAL_H_
 #define BLUETOOTHTERMINAL_H_
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "event_groups.h"
+#include "terminal_func.h"
+
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Share this queue when a module needs it
+ 	\param[in] none.
+ 	\return QueueHandle_t
+ */
 QueueHandle_t get_bt_msg_queue(void);
+
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Share this queue when a module needs it
+ 	\param[in] none.
+ 	\return QueueHandle_t
+ */
 QueueHandle_t get_bt_time_queue(void);
-void bt_terminal_init(void);
+
+/********************************************************************************************/
+/********************************************************************************************/
+/********************************************************************************************/
+/*!
+ 	\brief Configure all peripherals needed to use UART BLUETOOTH
+ 	\param[in] none.
+ 	\return void
+ */
+void bluetooth_init(void);
 
 #endif /* BLUETOOTHTERMINAL_H_ */
