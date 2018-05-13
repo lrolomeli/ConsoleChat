@@ -21,6 +21,7 @@ EventGroupHandle_t bluetoothterm_events_g;
 QueueHandle_t bt_term_queue;
 QueueHandle_t bt_time_queue;
 QueueHandle_t bt_msg_queue;
+QueueHandle_t bt_date_queue;
 
 /*******************************************************************************
  * BLUETOOTH CALLBACK EITHER SEND OR RECEIVE INTERRUPT
@@ -74,6 +75,14 @@ QueueHandle_t get_bt_msg_queue(void)
 QueueHandle_t get_bt_time_queue(void)
 {
 	return bt_time_queue;
+}
+
+/*******************************************************************************
+ * RETURNS THE QUEUE WHERE DATE IS READED
+ ******************************************************************************/
+QueueHandle_t get_bt_date_queue(void)
+{
+	return bt_date_queue;
 }
 
 /*******************************************************************************

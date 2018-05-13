@@ -121,6 +121,9 @@ static const uint8_t ASCII[][5] =
  * Code
  ******************************************************************************/
 
+/*
+ * It configures all the pins needed on LCD
+ * */
 void config_lcd_spi_pins(void)
 {
     /**Configures LCD data, CMD and reset pins as outputs*/
@@ -154,11 +157,13 @@ void config_lcd_spi_pins(void)
 
 	DSPI_MasterTransferCreateHandle(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			DSPI_MasterUserCallback, NULL);
-
 	transfer_dspi_semaphore = xSemaphoreCreateBinary();
 	transfer_dspi_mutex = xSemaphoreCreateMutex();
 }
 
+/*
+ * It configures the LCD
+ * */
 void LCDNokia_init(void)
 {
 	LCDNokia_writeByte(LCD_CMD, 0x21); //Tell LCD that extended commands follow
@@ -171,49 +176,48 @@ void LCDNokia_init(void)
 	LCDNokia_clear();/*! It clears the information printed in the LCD*/
 }
 
+/*
+ * It allows to write a figure represented by constant array
+ * */
 void LCDNokia_bitmap(const uint8_t* my_array){
     uint16_t index=0;
   for (index = 0 ; index < (LCD_X * LCD_Y / 8) ; index++)
 	  LCDNokia_writeByte(LCD_DATA, *(my_array+index));
 }
 
-
-
+/*
+ * It writes a byte in the LCD memory. The place of writing
+ * is the last place that was indicated by LCDNokia_gotoXY.
+ * In the reset state the initial place is x=0 y=0
+ **/
 void LCDNokia_writeByte(uint8_t DataOrCmd, uint8_t data)
 {
 	static dspi_transfer_t masterXfer;
-
 	if(DataOrCmd)
 		GPIO_SetPinsOutput(GPIOD, 1 << LCD_DC_PIN);
 	else
 		GPIO_ClearPinsOutput(GPIOD, 1 << LCD_DC_PIN);
-
 	/* Start master transfer, send data to slave */
 	masterXfer.txData = &data;
 	masterXfer.rxData = NULL;
 	masterXfer.dataSize = TRANSFER_SIZE;
 	masterXfer.configFlags = kDSPI_MasterCtar0
 			| kDSPI_MasterPcs0 | kDSPI_MasterPcsContinuous;
-	
 	xSemaphoreTake(transfer_dspi_mutex, portMAX_DELAY);
-
 	DSPI_StartTransfer(LCD_DSPI_MASTER_BASEADDR);
-
 	DSPI_MasterTransferNonBlocking(LCD_DSPI_MASTER_BASEADDR, &g_m_handle,
 			&masterXfer);
-
 	xSemaphoreTake(transfer_dspi_semaphore, portMAX_DELAY);
-
 	DSPI_StopTransfer(LCD_DSPI_MASTER_BASEADDR);
-
 	xSemaphoreGive(transfer_dspi_mutex);
 }
 
+/*
+ * It write a character in the LCD
+ * */
 void LCDNokia_sendChar(uint8_t character, uint8_t bw) {
   uint16_t index = 0;
-	
   //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
-
   if(bw)
   {
 	  for (index = 0 ; index < 5 ; index++)
@@ -226,17 +230,20 @@ void LCDNokia_sendChar(uint8_t character, uint8_t bw) {
 		  LCDNokia_writeByte(LCD_DATA, ASCII[character - 0x20][index]);
 	    //0x20 is the ASCII character for Space (' '). The font table starts with this character
   }
-
-
-
   //LCDNokia_writeByte(LCD_DATA, 0x00); //Blank vertical line padding
 }
 
+/*
+ * It write a string into the LCD
+ * */
 void LCDNokia_sendString(uint8_t *characters, uint8_t bw) {
   while (*characters)
 	  LCDNokia_sendChar(*characters++, bw);
 }
 
+/*
+ * it clears all the figures in the LCD
+ * */
 void LCDNokia_clear(void) {
 	uint16_t index = 0;
   for (index = 0 ; index < (LCD_X * LCD_Y / 8) ; index++)
@@ -244,11 +251,18 @@ void LCDNokia_clear(void) {
   LCDNokia_gotoXY(0, 0); //After we clear the display, return to the home position
 }
 
+/*
+ *
+ * */
 void LCDNokia_gotoXY(uint8_t x, uint8_t y) {
 	LCDNokia_writeByte(LCD_CMD, 0x80 | x);  // Column.
 	LCDNokia_writeByte(LCD_CMD, 0x40 | y);  // Row.  ?
 }
 
+/*
+ *It is used to indicate the place for writing a new character in the LCD. The values
+ *It that x can take are 0 to 84 and y can take values from 0 to 5
+ * */
 void printline(print_line_type_e NormalOrInverse, uint8_t * string, lcd_row_type_e row)
 {
 
@@ -258,6 +272,9 @@ void printline(print_line_type_e NormalOrInverse, uint8_t * string, lcd_row_type
 
 }
 
+/*
+ * it is the callback that check the state SPI's protocol
+ * */
 void DSPI_MasterUserCallback(SPI_Type *base, dspi_master_handle_t *handle, status_t status, void *userData)
 {
     userData = userData;

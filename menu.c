@@ -11,6 +11,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+/******************************************************************************
+* DEFINITIONS
+******************************************************************************/
 #define MAIN_MENU 0
 #define MENU_SIZE (sizeof(terminal_menu) - 1)
 #define MSG1MENU1 (sizeof(msg1_menu1) - 1)
@@ -24,6 +27,9 @@
 #define ENTERSIZE (sizeof(enter) - 1)
 #define YOUSIZE (sizeof(you) - 1)
 
+/*******************************************************************************
+ * STRUCTURES
+ ******************************************************************************/
 typedef struct state {
 	 /**pointer to function*/
 	uint8_t (*ptr)(UART_Type *, uart_handle_t *, EventGroupHandle_t,
@@ -31,6 +37,9 @@ typedef struct state {
 
 } State;
 
+/*******************************************************************************
+* PROTOTYPES
+******************************************************************************/
 uint8_t menu_one(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
 		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
@@ -53,7 +62,11 @@ uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle,
 		EventGroupHandle_t event_group, QueueHandle_t queue,
 		QueueHandle_t foreign_queue, QueueHandle_t actual_queue);
 uint8_t * check_hour(uart_transfer_t hour);
+uint8_t * check_date(uart_transfer_t date);
 
+/******************************************************************************
+* state machine of menu
+******************************************************************************/
 static const State menu_state[10] = { 	{ &main_menu },
 										{ &menu_one },
 										{ &menu_two },
@@ -65,6 +78,9 @@ static const State menu_state[10] = { 	{ &main_menu },
 										{ &menu_eight },
 										{ &menu_nine } };
 
+/******************************************************************************
+* text of UART of (serial port / bluetooth)
+******************************************************************************/
 static uint8_t terminal_menu[] =
 		"\r\n(1) Read EEPROM I2C\r\n(2) Write EEPROM I2C"
 				"\r\n(3) Set Hour\r\n(4) Set Date"
@@ -85,6 +101,10 @@ static uint8_t msg2_menu3[] = "\r\nHour has been modified... ";
 
 static uint8_t msg1_menu6[] = "\r\nCurrent Hour...\r\n";
 
+static uint8_t msg1_menu4[] = "\r\nType Date in dd/mm/yy: ";
+
+static uint8_t msg2_menu4[] = "\r\nDate has been modified... ";
+
 static uint8_t disconnect_msg[] = "\r\nThe other person has left the conversation\r\n";
 
 static uint8_t connection_msg[] = "\r\nYou have enter the room\r\n";
@@ -93,31 +113,44 @@ static uint8_t enter[] = "\r\nTerminal says: ";
 
 static uint8_t you[] = "\r\n";
 
-void print_time_lcd(void)
+
+/******************************************************************************
+* It takes the hour from a buffer and then separate the values to
+* send it to the LCD.
+******************************************************************************/
+void print_time_lcd_task(void * pvParameters)
 {
 	static uint8_t buffer[3] = {0};
 	static uint8_t time[10];
 	static uint8_t welcome_msg1[] = "Bluetooth Chat";
 
-	printline(Inverse_print, welcome_msg1, first_row);
-	xQueueReceive(get_time_mailbox(), buffer, portMAX_DELAY);
+	for(;;)
+	{
+		printline(Inverse_print, welcome_msg1, first_row);
+		xQueueReceive(get_time_mailbox(), buffer, portMAX_DELAY);
 
-	time[9] = 0;
-	time[8] = ' ';
-	time[7] = (buffer[0] & 0x0F) + '0';
-	time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
-	time[5] = ':';
-	time[4] = (buffer[1] & 0x0F) + '0';
-	time[3] = ((buffer[1] & 0xF0) >> 4) + '0';
-	time[2] = ':';
-	time[1] = (buffer[2] & 0x0F) + '0';
-	time[0] = ((buffer[2] & 0x30) >> 4) + '0';
+		time[9] = 0;
+		time[8] = ' ';
+		time[7] = (buffer[0] & 0x0F) + '0';
+		time[6] = ((buffer[0] & 0xF0) >> 4) + '0';
+		time[5] = ':';
+		time[4] = (buffer[1] & 0x0F) + '0';
+		time[3] = ((buffer[1] & 0xF0) >> 4) + '0';
+		time[2] = ':';
+		time[1] = (buffer[2] & 0x0F) + '0';
+		time[0] = ((buffer[2] & 0x30) >> 4) + '0';
 
-	LCDNokia_clear();
-	printline(Normal_print, time, sixth_row);
+		LCDNokia_clear();
+		printline(Normal_print, time, sixth_row);
 
 }
 
+}
+
+/******************************************************************************
+* It takes the hour from a buffer and then separate the values to
+* send it to the terminal.
+******************************************************************************/
 void print_time_task(void * pvParameters)
 {
 
@@ -159,6 +192,108 @@ void print_time_task(void * pvParameters)
 	}
 }
 
+/******************************************************************************
+* It takes the date from a buffer and then separate the values to
+* send it to the LCD.
+******************************************************************************/
+void print_date_lcd_task(void * pvParameters)
+{
+	static uint8_t buffer[2] = {0};
+	static uint8_t date[10];
+	static uint16_t year;
+	static uint8_t bit1_year = 0;
+	static uint8_t bit2_year = 0;
+
+
+	for(;;)
+	{
+
+		xQueueReceive(get_date_mailbox(), buffer, portMAX_DELAY);
+
+		year = buffer[2] * 1000 + buffer[3] * 100 + buffer[4] * 10 + buffer[5];
+		bit1_year = buffer[0] & MASK_BIT1_YEAR;
+		bit2_year = buffer[0] & MASK_BIT2_YEAR;
+
+		year = ((year) + (bit1_year >> 7) + (bit2_year >> 7));
+
+		date[9] =  ((int32_t)((year % 10000) / 1000)) + '0';;
+		date[8] =  ((int32_t)((year % 1000) / 100)) + '0';
+		date[7] =  ((int32_t)((year % 100) / 10)) + '0';
+		date[6] =  ((int32_t)((year % 10) / 1)) + '0';
+		date[5] = '/';
+		date[4] = (buffer[0] & MASK_FORMAT_U_MONTH) + '0';
+		date[3] = ((buffer[0] & MASK_FORMAT_D_MONTH) >> 4) + '0';
+		date[2] = '/';
+		date[1] = (buffer[1] & MASK_FORMAT_U_DAY) + '0';
+		date[0] = ((buffer[1] & MASK_FORMAT_D_DAY) >> 4) + '0';
+
+		printline(Normal_print, date, fifth_row);
+
+	}
+
+}
+
+/******************************************************************************
+* It takes the date from a buffer and then separate the values to
+* send it to terminal.
+******************************************************************************/
+void print_date_task(void * pvParameters)
+{
+
+	terminal_type * uart_param = (terminal_type *) pvParameters;
+	uint8_t msg = 0;
+	static uint8_t buffer[6] = { 0 };
+	static uint8_t date[11];
+	static uint16_t year;
+	static uint8_t bit1_year = 0;
+	static uint8_t bit2_year = 0;
+
+	xEventGroupWaitBits(uart_param->event_group, EXIT_DATE, pdTRUE, pdTRUE,
+			portMAX_DELAY);
+
+		for (;;)
+		{
+
+				xQueueReceive(uart_param->queue, &msg, 0);
+
+				if (msg)
+					{
+						xEventGroupWaitBits(uart_param->event_group, EXIT_DATE, pdTRUE,
+								pdTRUE, portMAX_DELAY);
+						msg = 0;
+					}
+
+				xQueueReceive(get_date_mailbox(), buffer, portMAX_DELAY);
+				year = buffer[2] * 1000 + buffer[3] * 100 + buffer[4] * 10 + buffer[5];
+				bit1_year = buffer[0] & MASK_BIT1_YEAR;
+				bit2_year = buffer[0] & MASK_BIT2_YEAR;
+
+
+				year = ((year) + (bit1_year >> 7) + (bit2_year >> 7));
+
+
+				date[10] = '\r';
+				date[9] =  ((int32_t)((year % 10000) / 1000)) + '0';;
+				date[8] =  ((int32_t)((year % 1000) / 100)) + '0';
+				date[7] =  ((int32_t)((year % 100) / 10)) + '0';
+				date[6] =  ((int32_t)((year % 10) / 1)) + '0';
+				date[5] = '/';
+				date[4] = (buffer[0] & MASK_FORMAT_U_MONTH) + '0';
+				date[3] = ((buffer[0] & MASK_FORMAT_D_MONTH) >> 4) + '0';
+				date[2] = '/';
+				date[1] = (buffer[1] & MASK_FORMAT_U_DAY) + '0';
+				date[0] = ((buffer[1] & MASK_FORMAT_D_DAY) >> 4) + '0';
+
+				print(uart_param->xuart, &(uart_param->uart_handle),
+				uart_param->event_group, date, 9 * sizeof(uint8_t));
+
+	}
+
+}
+
+/******************************************************************************
+* This function
+******************************************************************************/
 void communication_task(void * pvParameters)
 {
 	uart_transfer_t received = { NULL, 0 };
@@ -186,6 +321,12 @@ void communication_task(void * pvParameters)
 
 }
 
+/*******************************************************************************
+ * 	MAIN MENU TASK
+ *
+ *	Main task that let us change the state between menus into terminals
+ *
+ ******************************************************************************/
 void main_menu_task(void * pvParameters)
 {
 
@@ -212,11 +353,11 @@ void main_menu_task(void * pvParameters)
 	}
 
 }
+
 /*******************************************************************************
- * RUTINA MENU PRINCIPAL
+ * 	ROUTINE MAIN MENU
  *
- *	Esta rutina va a imprimir el menu principal en pantalla
- *	y espera respuesta por parte del usuario
+ *	Function that receives a number from the user in terminals
  *
  ******************************************************************************/
 uint8_t main_menu(UART_Type * xuart, uart_handle_t* uart_handle,
@@ -371,7 +512,7 @@ uint8_t menu_four(UART_Type * xuart, uart_handle_t* uart_handle,
 }
 
 /*******************************************************************************
- * RUTINA MENU 6
+ * ROUTINE MENU 6
  *
  *	This function is constantly waiting while the print time task is checking
  *	and printing the hour. Once the user press enter this function wakes up for
@@ -496,6 +637,117 @@ uint8_t * check_hour(uart_transfer_t hour)
 			time_to_send[0] = ((time[TENS_SECONDS] << 4) & MASK_TENS)
 					| (time[UNITS_SECONDS] & MASK_UNITS);
 			return (uint8_t *) time_to_send;
+		}
+
+	}
+
+	return NULL;
+
+}
+
+uint8_t * check_date(uart_transfer_t year)
+{
+	int8_t date[8] = {0};
+	static uint8_t date_to_send[6] = {0};
+	date_to_send[0] = -1;
+	date_to_send[1] = -1;
+	date_to_send[2] = -1;
+	date_to_send[3] = -1;
+	date_to_send[4] = -1;
+	date_to_send[5] = -1;
+
+
+	if(10 == year.dataSize)
+	{
+		//////////////////////////////////////////////valdar datos de año ///////////////////////////////////////////////////////////////////////////
+		date[UNITS_T_YEAR] = ( '0' <= year.data[0] && '9' >= year.data[0] ) ? (year.data[0] - '0') : -1;
+		date[HUNDRED_YEAR] = ( '0' <= year.data[1] && '9' >= year.data[1] ) ? (year.data[1] - '0') : -1;
+		date[TENS_YEAR] =    ( '0' <= year.data[2] && '9' >= year.data[2] ) ? (year.data[2] - '0') : -1;
+		date[UNITS_YEAR] =   ( '0' <= year.data[3] && '9' >= year.data[3] ) ? (year.data[3] - '0') : -1;
+
+		//////////////////////////////////////////////valdar decenas de mes ///////////////////////////////////////////////////////////////////////////
+		date[TENS_MONTH] =   ( '0' <= year.data[5] && '1' >= year.data[5] ) ? (year.data[5] - '0') : -1;
+
+		//////////////////////////////////////////////vaidar unidaades de mes ///////////////////////////////////////////////////////////////////////////
+		if (date[TENS_MONTH] == 0)
+		{
+			date[UNITS_MONTH] = ( '0' <= year.data[6] && '9' >= year.data[6] ) ? (year.data[6] - '0') : -1;
+		}
+		else if (date[TENS_MONTH] == 1)
+		{
+			date[UNITS_MONTH] = ( '0' <= year.data[6] && '2' >= year.data[6] ) ? (year.data[6] - '0') : -1;
+		}
+
+		///////////////////////////////////////////////validar decena maxima de dias /////////////////////////////////////////////////////////////////////////////////////////////////
+		date[TENS_DAY] =   ( '0' <= year.data[8] && '3' >= year.data[8] ) ? (year.data[8] - '0') : -1;
+
+
+		///////////////////////////////////////////////validar dias en febrero /////////////////////////////////////////////////////////////////////////////////////////////////
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 2 && (date[TENS_DAY] == 0 || date[TENS_DAY] == 1))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '9' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 2 && (date[TENS_DAY] == 2))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '8' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+
+		///////////////////////////////////////////////validar los meses que tienen 30 dias ////////////////////////////////////////////////////////////////////////////////////////
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 4  && date[UNITS_MONTH] == 6 && date[UNITS_MONTH] == 9 && (date[TENS_DAY] == 0 || date[TENS_DAY] == 1 || date[TENS_DAY] == 2))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '9' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+		if (date[TENS_MONTH] == 1 && date[UNITS_MONTH] == 1  && (date[TENS_DAY] == 0 || date[TENS_DAY] == 1 || date[TENS_DAY] == 2))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '9' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 4  && date[UNITS_MONTH] == 6 && date[UNITS_MONTH] == 9 && (date[TENS_DAY] == 3) )
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '0' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+		if (date[TENS_MONTH] == 1 && date[UNITS_MONTH] == 1  && (date[TENS_DAY] == 3))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '0' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+
+
+		///////////////////////////////////////////////validar los meses que tienen 31 dias ///////////////////////////////////////////////////////////////////////////////////////
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 1 && date[UNITS_MONTH] == 3 && date[UNITS_MONTH] == 5 && date[UNITS_MONTH] == 7 && date[UNITS_MONTH] == 8 && (date[TENS_DAY] == 0 || date[TENS_DAY] == 1 || date[TENS_DAY] == 2))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '9' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+		if (date[TENS_MONTH] == 1 && date[UNITS_MONTH] == 0 && date[UNITS_MONTH] == 2  && (date[TENS_DAY] == 0 || date[TENS_DAY] == 1 || date[TENS_DAY] == 2))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[5] && '9' >= year.data[5] ) ? (year.data[9] - '0') : -1;
+		}
+
+		if (date[TENS_MONTH] == 0 && date[UNITS_MONTH] == 1 && date[UNITS_MONTH] == 3 && date[UNITS_MONTH] == 5 && date[UNITS_MONTH] == 7 && date[UNITS_MONTH] == 8 && (date[TENS_DAY] == 3 ))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '1' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+		if (date[TENS_MONTH] == 1 && date[UNITS_MONTH] == 0 && date[UNITS_MONTH] == 2  && (date[TENS_DAY] == 3 ))
+		{
+			date[UNITS_DAY] = ( '0' <= year.data[9] && '1' >= year.data[9] ) ? (year.data[9] - '0') : -1;
+		}
+
+
+		if (-1 == date[UNITS_T_YEAR] || -1 == date[HUNDRED_YEAR] || -1 == date[TENS_YEAR] || -1 == date[UNITS_YEAR]
+		        || -1 == date[TENS_MONTH] || -1 == date[UNITS_MONTH] || -1 == date[TENS_DAY] || -1 == date[UNITS_DAY])
+		{
+			return NULL;
+		}
+
+
+		else
+		{
+			date_to_send[0] = ((0x3F) & (((date[TENS_DAY] << 4) & (MASK_FORMAT_D_DAY)) | ((date[UNITS_DAY]) & (MASK_FORMAT_U_DAY)))); //se le envia 0 a años y solo se envia bien los dias
+			date_to_send[1] = (((date[TENS_MONTH] << 4) & (MASK_FORMAT_D_MONTH))) | ((date[UNITS_MONTH]) & (MASK_FORMAT_U_MONTH));
+			date_to_send[2] = date[UNITS_T_YEAR];
+			date_to_send[3] = date[HUNDRED_YEAR];
+			date_to_send[4] = date[TENS_YEAR];
+			date_to_send[5] = date[UNITS_YEAR];
+			return (uint8_t *)date_to_send;
 		}
 
 	}

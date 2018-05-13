@@ -39,6 +39,7 @@ typedef struct {
 #define EVENT_TX 				(1 << 1)
 #define PRINT_TIME				(1 << 2)
 #define EXIT_TIME				(1 << 3)
+#define EXIT_DATE				(1 << 6)
 #define CHAT_EVENT				(1 << 4)
 #define END_CHAT_EVENT			(1 << 5)
 /*******************************************************************************

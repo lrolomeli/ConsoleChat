@@ -21,6 +21,7 @@ static EventGroupHandle_t serialterm_events_g;
 static QueueHandle_t serial_term_queue;
 static QueueHandle_t serial_time_queue;
 static QueueHandle_t serial_msg_queue;
+static QueueHandle_t serial_date_queue;
 
 /*******************************************************************************
  * SERIAL CALLBACK EITHER SEND OR RECEIVE INTERRUPT
@@ -74,6 +75,14 @@ QueueHandle_t get_serial_msg_queue(void)
 QueueHandle_t get_serial_time_queue(void)
 {
 	return serial_time_queue;
+}
+
+/*******************************************************************************
+ * RETURNS THE QUEUE WHERE DATE IS READED
+ ******************************************************************************/
+QueueHandle_t get_serial_date_queue(void)
+{
+	return serial_date_queue;
 }
 
 /*******************************************************************************

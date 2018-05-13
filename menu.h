@@ -20,5 +20,8 @@
 void init_menu(void);
 void main_menu_task(void * pvParameters);
 void print_time_task(void * pvParameters);
-void print_time_lcd(void);
+void print_time_lcd_task(void * pvParameters);
+//void print_time_lcd(void);
+void print_date_task(void * pvParameters);
+void print_date_lcd_task(void * pvParameters);
 #endif /* MENU_H_ */

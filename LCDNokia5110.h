@@ -20,7 +20,9 @@
 #include "semphr.h"
 #include "queue.h"
 
-
+/*******************************************************************************
+ * ENUMERATIONS
+ ******************************************************************************/
 typedef enum
 {
     first_row = 0,
@@ -39,7 +41,9 @@ typedef enum
 
 } print_line_type_e;
 
-
+/*******************************************************************************
+ * DEFINITIONS
+ ******************************************************************************/
 #define SCREENW 84
 #define SCREENH 48
 
@@ -66,26 +70,36 @@ typedef enum
  ******************************************************************************/
 /* DSPI user callback */
 void DSPI_MasterUserCallback(SPI_Type *base, dspi_master_handle_t *handle, status_t status, void *userData);
+
 /*It configures all the pins needed on LCD*/
 void config_lcd_spi_pins(void);
+
 /*It configures the LCD*/
 void LCDNokia_init(void);
+
 /*It writes a byte in the LCD memory. The place of writing is the last place that was indicated by LCDNokia_gotoXY. In the reset state
  * the initial place is x=0 y=0*/
 void LCDNokia_writeByte(uint8_t, uint8_t);
+
 /*it clears all the figures in the LCD*/
 void LCDNokia_clear(void);
+
 /*It is used to indicate the place for writing a new character in the LCD. The values that x can take are 0 to 84 and y can take values
  * from 0 to 5*/
 void LCDNokia_gotoXY(uint8_t x, uint8_t y);
+
 /*It allows to write a figure represented by constant array*/
 void LCDNokia_bitmap(const uint8_t*);
+
 /*It write a character in the LCD*/
 void LCDNokia_sendChar(uint8_t, uint8_t bw);
+
 /*It write a string into the LCD*/
 void LCDNokia_sendString(uint8_t*, uint8_t bw);
+
 /*It used in the initialization routine*/
 void LCD_delay(void);
+
 /*It's used to print a line on the LCD without a line padding and format color*/
 void printline (print_line_type_e NormalOrInverse, uint8_t * string,
         lcd_row_type_e row);

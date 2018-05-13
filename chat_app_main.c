@@ -22,9 +22,17 @@ int main(void)
 	/* Init FSL debug console. */
 	BOARD_InitDebugConsole();
 	//config_buttons();
+
+	/**start the parameters of uart bluetooth */
 	bluetooth_init();
+
+	/**start the parameters of uart serial terminal */
 	serial_init();
+
+	/**start the parameters of i2c to use rtc and eprom */
 	i2c_init_peripherals();
+
+	/**start the parameters of SPI to lcd */
 	lcd_spi_pins_init();
 
 	vTaskStartScheduler();

@@ -148,7 +148,7 @@ void date_time_lcd(void)
 
 void modify_time(void)
 {
-	print_time_lcd();
+	//print_time_lcd();
 }
 
 void modify_date(void)
